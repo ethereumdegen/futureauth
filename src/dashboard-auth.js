@@ -7,10 +7,16 @@ const resendApiKey = process.env.RESEND_API_KEY;
 const resendFrom = process.env.RESEND_FROM_EMAIL || "noreply@auth.vixautomation.com";
 
 export const dashboardAuth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   database: new pg.Pool({
     connectionString: process.env.DATABASE_URL,
   }),
+  advanced: {
+    database: {
+      useSnakeCase: true,
+    },
+  },
   trustedOrigins: [process.env.CORS_ORIGIN || "http://localhost:5180"],
   plugins: [
     emailOTP({

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import ProjectDetail from './pages/ProjectDetail'
 import NewProject from './pages/NewProject'
 import Settings from './pages/Settings'
+import Docs from './pages/Docs'
 
 export default function App() {
   const { data: session, isPending } = useSession()
@@ -34,6 +35,7 @@ export default function App() {
       <Route path="/" element={<Dashboard />} />
       <Route path="/projects/new" element={<NewProject />} />
       <Route path="/projects/:id" element={<ProjectDetail />} />
+      <Route path="/docs" element={<Docs />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>

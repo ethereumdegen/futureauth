@@ -1,3 +1,7 @@
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+require("dotenvy")();
+
 import pg from "pg";
 import { readFileSync, readdirSync } from "fs";
 import { join, dirname } from "path";

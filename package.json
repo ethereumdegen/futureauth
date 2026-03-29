@@ -8,12 +8,13 @@
     "migrate": "node migrate.js"
   },
   "dependencies": {
-    "better-auth": "^1.2.0",
-    "hono": "^4.7.0",
     "@hono/node-server": "^1.14.0",
+    "better-auth": "^1.2.0",
+    "dotenvy": "^0.2.0",
+    "hono": "^4.7.0",
+    "nanoid": "^5.1.0",
     "pg": "^8.13.0",
-    "twilio": "^5.5.0",
     "resend": "^4.1.0",
-    "nanoid": "^5.1.0"
+    "twilio": "^5.5.0"
   }
 }
