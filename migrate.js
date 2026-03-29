@@ -1,6 +1,6 @@
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-require("dotenvy")();
+try { require("dotenvy")(); } catch {}
 
 import pg from "pg";
 import { readFileSync, readdirSync } from "fs";

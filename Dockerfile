@@ -27,5 +27,4 @@ ENV PORT=3002
 
 EXPOSE 3002
 
-# Run migrations then start server
-CMD node migrate.js && node src/index.js
+CMD node src/index.js
