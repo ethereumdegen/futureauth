@@ -144,9 +144,9 @@ Query the project's own Postgres database. The session token is in the `better-a
 
 ```sql
 SELECT u.* FROM "session" s
-JOIN "user" u ON u.id = s."userId"
+JOIN "user" u ON u.id = s.user_id
 WHERE s.token = $1
-  AND s."expiresAt" > NOW();
+  AND s.expires_at > NOW();
 ```
 
 **Express example:**
@@ -157,8 +157,8 @@ app.get("/api/me", async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT u.* FROM "session" s
-     JOIN "user" u ON u.id = s."userId"
-     WHERE s.token = $1 AND s."expiresAt" > NOW()`,
+     JOIN "user" u ON u.id = s.user_id
+     WHERE s.token = $1 AND s.expires_at > NOW()`,
     [token.split(".")[0]]
   );
 

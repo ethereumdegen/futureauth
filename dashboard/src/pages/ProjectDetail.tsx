@@ -148,9 +148,9 @@ await authClient.emailOtp.verifyEmail({
 
             <section>
               <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Backend Session Check</h2>
-              <CodeBlock file="SQL — reads from YOUR database" code={`SELECT u.* FROM "session" s
-JOIN "user" u ON u.id = s."userId"
-WHERE s.token = $1 AND s."expiresAt" > NOW();`} />
+              <CodeBlock file="SQL — reads from YOUR database" code={`SELECT u.* FROM session s
+JOIN "user" u ON u.id = s.user_id
+WHERE s.token = $1 AND s.expires_at > NOW();`} />
             </section>
           </div>
         )}
@@ -180,14 +180,14 @@ WHERE s.token = $1 AND s."expiresAt" > NOW();`} />
                   <tbody>
                     {users.map((u) => (
                       <tr key={u.id} className="border-b border-gray-100 last:border-0">
-                        <td className="px-4 py-3 font-mono text-gray-700">{(isPhone ? u.phoneNumber : u.email) || '-'}</td>
+                        <td className="px-4 py-3 font-mono text-gray-700">{(isPhone ? u.phone_number : u.email) || '-'}</td>
                         <td className="px-4 py-3 text-gray-700">{u.name || '-'}</td>
                         <td className="px-4 py-3">
-                          {(isPhone ? u.phoneNumberVerified : u.emailVerified)
+                          {(isPhone ? u.phone_number_verified : u.email_verified)
                             ? <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-xs font-medium"><Check size={10} /> Yes</span>
                             : <span className="text-gray-400 text-xs">No</span>}
                         </td>
-                        <td className="px-4 py-3 text-gray-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -222,10 +222,10 @@ WHERE s.token = $1 AND s."expiresAt" > NOW();`} />
                   <tbody>
                     {sessions.map((s) => (
                       <tr key={s.id} className="border-b border-gray-100 last:border-0">
-                        <td className="px-4 py-3 font-mono text-gray-700">{s.phoneNumber || s.email || s.name || s.userId.slice(0, 12)}</td>
-                        <td className="px-4 py-3 text-gray-500">{s.ipAddress || '-'}</td>
-                        <td className="px-4 py-3 text-gray-500">{new Date(s.createdAt).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-gray-500">{new Date(s.expiresAt).toLocaleString()}</td>
+                        <td className="px-4 py-3 font-mono text-gray-700">{s.phone_number || s.email || s.name || s.user_id.slice(0, 12)}</td>
+                        <td className="px-4 py-3 text-gray-500">{s.ip_address || '-'}</td>
+                        <td className="px-4 py-3 text-gray-500">{new Date(s.created_at).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-gray-500">{new Date(s.expires_at).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -36,22 +36,22 @@ export interface ProjectUser {
   id: string
   name?: string
   email?: string
-  phoneNumber?: string
-  phoneNumberVerified?: boolean
-  emailVerified?: boolean
-  createdAt: string
+  phone_number?: string
+  phone_number_verified?: boolean
+  email_verified?: boolean
+  created_at: string
 }
 
 export interface ProjectSession {
   id: string
-  userId: string
-  phoneNumber?: string
+  user_id: string
+  phone_number?: string
   email?: string
   name?: string
-  ipAddress?: string
-  userAgent?: string
-  createdAt: string
-  expiresAt: string
+  ip_address?: string
+  user_agent?: string
+  created_at: string
+  expires_at: string
 }
 
 export interface AppConfig {

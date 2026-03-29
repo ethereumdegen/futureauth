@@ -119,7 +119,7 @@ app.get("/:id/users", async (c) => {
   await client.connect();
   try {
     const res = await client.query(
-      'SELECT id, name, email, "phoneNumber", "phoneNumberVerified", "emailVerified", "createdAt" FROM "user" ORDER BY "createdAt" DESC LIMIT 100'
+      'SELECT id, name, email, phone_number, phone_number_verified, email_verified, created_at FROM "user" ORDER BY created_at DESC LIMIT 100'
     );
     return c.json(res.rows);
   } finally {
@@ -141,11 +141,11 @@ app.get("/:id/sessions", async (c) => {
   await client.connect();
   try {
     const res = await client.query(
-      `SELECT s.id, s."userId", s."ipAddress", s."userAgent", s."createdAt", s."expiresAt",
-              u."phoneNumber", u.name, u.email
-       FROM "session" s LEFT JOIN "user" u ON u.id = s."userId"
-       WHERE s."expiresAt" > NOW()
-       ORDER BY s."createdAt" DESC LIMIT 100`
+      `SELECT s.id, s.user_id, s.ip_address, s.user_agent, s.created_at, s.expires_at,
+              u.phone_number, u.name, u.email
+       FROM session s LEFT JOIN "user" u ON u.id = s.user_id
+       WHERE s.expires_at > NOW()
+       ORDER BY s.created_at DESC LIMIT 100`
     );
     return c.json(res.rows);
   } finally {

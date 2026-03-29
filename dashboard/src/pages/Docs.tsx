@@ -282,9 +282,9 @@ console.log(session.user); // { id, phoneNumber, ... }`}
           <CodeBlock
             label="SQL"
             code={`SELECT u.* FROM "session" s
-JOIN "user" u ON u.id = s."userId"
+JOIN "user" u ON u.id = s.user_id
 WHERE s.token = $1
-  AND s."expiresAt" > NOW();`}
+  AND s.expires_at > NOW();`}
             copied={copied}
             onCopy={copy}
           />
@@ -301,8 +301,8 @@ app.get("/api/me", async (req, res) => {
 
   const { rows } = await pool.query(
     \`SELECT u.* FROM "session" s
-     JOIN "user" u ON u.id = s."userId"
-     WHERE s.token = $1 AND s."expiresAt" > NOW()\`,
+     JOIN "user" u ON u.id = s.user_id
+     WHERE s.token = $1 AND s.expires_at > NOW()\`,
     [token.split(".")[0]] // token format: "id.secret"
   );
 
@@ -345,10 +345,10 @@ await signOut();`}
           </p>
           <CodeBlock
             label="Tables created in your database"
-            code={`"user"        — id, name, email, phoneNumber, emailVerified, phoneNumberVerified, image, createdAt, updatedAt
-"session"     — id, userId, token, expiresAt, ipAddress, userAgent, createdAt, updatedAt
-"account"     — id, userId, accountId, providerId, accessToken, ...
-"verification" — id, identifier, value, expiresAt, createdAt, updatedAt`}
+            code={`"user"         — id, name, email, phone_number, email_verified, phone_number_verified, image, created_at, updated_at
+session        — id, user_id, token, expires_at, ip_address, user_agent, created_at, updated_at
+account        — id, user_id, account_id, provider_id, access_token, ...
+verification   — id, identifier, value, expires_at, created_at, updated_at`}
             copied={copied}
             onCopy={copy}
           />
