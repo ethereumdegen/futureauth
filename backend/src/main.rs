@@ -14,7 +14,8 @@ use axum::{
     http::StatusCode,
 };
 use sqlx::PgPool;
-use tower_http::cors::{CorsLayer, Any};
+use tower_http::cors::CorsLayer;
+use axum::http::header;
 use tower_http::trace::TraceLayer;
 use futureauth::{FutureAuth, FutureAuthConfig};
 
@@ -73,8 +74,19 @@ async fn main() {
         .allow_origin(
             state.config.cors_origin.parse::<axum::http::HeaderValue>().unwrap(),
         )
-        .allow_methods(Any)
-        .allow_headers(Any)
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            header::ACCEPT,
+            header::COOKIE,
+        ])
         .allow_credentials(true);
 
     let app = Router::new()
