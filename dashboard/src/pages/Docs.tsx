@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { ArrowLeft, Phone, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Shield, Copy, Check, BookOpen, Terminal, Database, Zap, Package } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Docs() {
@@ -15,318 +15,833 @@ export default function Docs() {
   return (
     <div className="min-h-screen bg-white">
       <nav className="border-b border-gray-200 sticky top-0 bg-white/80 backdrop-blur-xl z-10">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
           <Link to="/" className="text-gray-400 hover:text-gray-900 transition-colors">
             <ArrowLeft size={16} />
           </Link>
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center">
-              <Phone size={14} className="text-white" />
+              <Shield size={14} className="text-white" />
             </div>
             <span className="text-lg font-bold text-gray-900">FutureAuth</span>
           </div>
           <span className="text-gray-300">/</span>
-          <span className="text-sm text-gray-500 font-medium">Integration Guide</span>
+          <span className="text-sm text-gray-500 font-medium">Documentation</span>
         </div>
       </nav>
 
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Integration Guide</h1>
-        <p className="text-gray-500 mb-10">Add passwordless OTP authentication to your Rust app with the FutureAuth SDK.</p>
+      <div className="max-w-4xl mx-auto px-6 py-10 flex gap-12">
+        {/* Sidebar */}
+        <aside className="hidden lg:block w-56 shrink-0 sticky top-20 self-start">
+          <nav className="space-y-1 text-sm">
+            <SidebarGroup title="Getting Started">
+              <SidebarLink href="#overview">Overview</SidebarLink>
+              <SidebarLink href="#architecture">Architecture</SidebarLink>
+              <SidebarLink href="#installation">Installation</SidebarLink>
+              <SidebarLink href="#quick-start">Quick Start</SidebarLink>
+            </SidebarGroup>
+            <SidebarGroup title="Core Concepts">
+              <SidebarLink href="#configuration">Configuration</SidebarLink>
+              <SidebarLink href="#send-otp">Sending OTP</SidebarLink>
+              <SidebarLink href="#verify-otp">Verifying OTP</SidebarLink>
+              <SidebarLink href="#sessions">Sessions</SidebarLink>
+              <SidebarLink href="#sign-out">Sign Out</SidebarLink>
+            </SidebarGroup>
+            <SidebarGroup title="Axum Integration">
+              <SidebarLink href="#axum-setup">Setup</SidebarLink>
+              <SidebarLink href="#axum-routes">Auth Routes</SidebarLink>
+              <SidebarLink href="#axum-extractor">AuthSession Extractor</SidebarLink>
+              <SidebarLink href="#axum-state">AppState Pattern</SidebarLink>
+            </SidebarGroup>
+            <SidebarGroup title="Reference">
+              <SidebarLink href="#schema">Database Schema</SidebarLink>
+              <SidebarLink href="#api-reference">SDK API Reference</SidebarLink>
+              <SidebarLink href="#rest-api">REST API Endpoints</SidebarLink>
+              <SidebarLink href="#dashboard-api">Dashboard API</SidebarLink>
+              <SidebarLink href="#errors">Error Handling</SidebarLink>
+              <SidebarLink href="#troubleshooting">Troubleshooting</SidebarLink>
+            </SidebarGroup>
+          </nav>
+        </aside>
 
-        {/* Overview */}
-        <Section id="overview" title="How it works">
-          <p>
-            FutureAuth is an <strong>OTP delivery service</strong>. The <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">futureauth</code> Rust SDK
-            handles all auth logic locally — users, sessions, and verification codes are stored in <strong>your own Postgres database</strong>.
-            FutureAuth's server only delivers the OTP codes via Resend (email) or Twilio (SMS).
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">FutureAuth Documentation</h1>
+          <p className="text-gray-500 mb-10">
+            Passwordless OTP authentication for Rust apps. Email and SMS.{' '}
+            <a href="https://crates.io/crates/futureauth" target="_blank" rel="noopener" className="text-emerald-600 underline">crates.io/crates/futureauth</a>
           </p>
-          <ol className="list-decimal list-inside space-y-1 mt-3 text-gray-600">
-            <li>Create a project in the FutureAuth dashboard</li>
-            <li>Install the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">futureauth</code> SDK crate in your Rust project</li>
-            <li>Initialize the SDK with your secret key and database pool</li>
-            <li>Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">send_otp</code> and <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">verify_otp</code> for auth flows</li>
-            <li>Sessions are stored and validated locally in your database</li>
-          </ol>
-        </Section>
 
-        {/* Prerequisites */}
-        <Section id="prerequisites" title="Prerequisites">
-          <ul className="list-disc list-inside space-y-1 text-gray-600">
-            <li>A Postgres database (Neon, Supabase, Railway Postgres, etc.)</li>
-            <li>A Rust project using Axum (or any async framework)</li>
-            <li>An account on FutureAuth — <Link to="/sign-in" className="text-emerald-600 underline">sign in here</Link></li>
-          </ul>
-        </Section>
+          {/* Overview */}
+          <Section id="overview" title="Overview">
+            <p>
+              <strong>FutureAuth</strong> is a two-part system for adding passwordless OTP authentication to Rust applications:
+            </p>
+            <ol className="list-decimal list-inside space-y-2 mt-3 text-gray-600">
+              <li><strong>The SDK</strong> (<code className="code-inline">futureauth</code> crate) — runs inside your app, manages users, sessions, and verification codes in <em>your own Postgres database</em></li>
+              <li><strong>The API</strong> (future-auth.com) — a hosted service that delivers OTP codes via email (Resend) or SMS (Twilio)</li>
+            </ol>
+            <p className="mt-3">
+              FutureAuth never stores your users or sessions. It only delivers the 6-digit code. Everything else happens locally in your database.
+            </p>
+            <Callout type="info">
+              Think of FutureAuth like Stripe for auth codes — you own the users, we deliver the codes.
+            </Callout>
+          </Section>
 
-        {/* Step 1 */}
-        <Section id="create-project" title="1. Create a project">
-          <p>
-            Go to the <Link to="/" className="text-emerald-600 underline">dashboard</Link> and click <strong>New Project</strong>.
-            Choose a name and select an OTP mode (email or phone).
-          </p>
-          <p className="mt-2">
-            You'll receive a <strong>publishable key</strong> and <strong>secret key</strong>.
-            The secret key is used by the SDK to authenticate with FutureAuth's OTP delivery API.
-          </p>
-          <Callout>
-            Save your secret key immediately — it's only shown once on creation.
-          </Callout>
-        </Section>
+          {/* Architecture */}
+          <Section id="architecture" title="Architecture">
+            <p>Here's how the pieces fit together:</p>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mt-4 font-mono text-sm text-gray-600 leading-loose">
+              <pre>{`┌─────────────────────────────────────────────┐
+│  Your Rust App                              │
+│                                             │
+│  ┌──────────────────────────┐               │
+│  │  futureauth SDK          │               │
+│  │                          │               │
+│  │  send_otp()  ──────────────────►  FutureAuth API
+│  │  verify_otp()            │        (future-auth.com)
+│  │  get_session()           │        Delivers email/SMS
+│  │  revoke_session()        │               │
+│  │                          │               │
+│  │  ┌────────────────────┐  │               │
+│  │  │  Your Postgres DB  │  │               │
+│  │  │  - "user" table    │  │               │
+│  │  │  - session table   │  │               │
+│  │  │  - verification    │  │               │
+│  │  └────────────────────┘  │               │
+│  └──────────────────────────┘               │
+└─────────────────────────────────────────────┘`}</pre>
+            </div>
+            <ul className="mt-4 space-y-1 text-sm text-gray-600">
+              <li><code className="code-inline">send_otp()</code> — generates a code, stores it locally, then calls FutureAuth API to deliver it</li>
+              <li><code className="code-inline">verify_otp()</code> — checks the code locally, creates user + session in your DB</li>
+              <li><code className="code-inline">get_session()</code> — validates a session token locally (no network call)</li>
+              <li><code className="code-inline">revoke_session()</code> — deletes a session locally (no network call)</li>
+            </ul>
+          </Section>
 
-        {/* Step 2 */}
-        <Section id="install-sdk" title="2. Install the SDK">
-          <CodeBlock
-            label="Cargo.toml"
-            code={`[dependencies]
-futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk" }
+          {/* Installation */}
+          <Section id="installation" title="Installation">
+            <p>Add the SDK to your project:</p>
+            <CodeBlock
+              label="terminal"
+              code="cargo add futureauth"
+              copied={copied}
+              onCopy={copy}
+            />
+            <p className="mt-3">For the Axum integration (pre-built routes + auth extractor):</p>
+            <CodeBlock
+              label="terminal"
+              code='cargo add futureauth --features axum-integration'
+              copied={copied}
+              onCopy={copy}
+            />
+            <p className="mt-3">Or add it directly to your <code className="code-inline">Cargo.toml</code>:</p>
+            <CodeBlock
+              label="Cargo.toml"
+              code={`[dependencies]
+futureauth = { version = "0.1", features = ["axum-integration"] }`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <Callout type="info">
+              The <code className="text-xs">axum-integration</code> feature is optional. Without it, you get the core SDK (send_otp, verify_otp, sessions) that works with any Rust framework.
+            </Callout>
+          </Section>
 
-# With Axum integration (routes + extractor):
-# futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk", features = ["axum-integration"] }`}
-            copied={copied}
-            onCopy={copy}
-          />
-        </Section>
-
-        {/* Step 3 */}
-        <Section id="initialize" title="3. Initialize the SDK">
-          <CodeBlock
-            label="src/main.rs"
-            code={`use futureauth::{FutureAuth, FutureAuthConfig};
-use sqlx::PgPool;
-
-let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
-
-let futureauth = FutureAuth::new(pool.clone(), FutureAuthConfig {
-    api_url: "${futureauthUrl}".to_string(),
-    secret_key: std::env::var("FUTUREAUTH_SECRET_KEY")?,
-    project_name: "My App".to_string(),
-    ..Default::default()
-});
-
-// Create auth tables (user, session, verification)
-futureauth.ensure_tables().await?;`}
-            copied={copied}
-            onCopy={copy}
-          />
-          <Callout>
-            <code className="text-xs">ensure_tables()</code> is idempotent — safe to call on every startup.
-            It creates the <code className="text-xs">user</code>, <code className="text-xs">session</code>, and <code className="text-xs">verification</code> tables
-            if they don't exist. All columns use snake_case.
-          </Callout>
-        </Section>
-
-        {/* Step 4 */}
-        <Section id="send-otp" title="4. Send OTP">
-          <Tabs
-            tabs={[
-              {
-                label: 'Email OTP',
-                content: (
-                  <CodeBlock
-                    label="Email OTP"
-                    code={`use futureauth::OtpChannel;
-
-futureauth.send_otp(OtpChannel::Email, "user@example.com").await?;
-// SDK generates a code, stores it in your DB, then calls
-// FutureAuth API to deliver it via Resend`}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                ),
-              },
-              {
-                label: 'Phone OTP',
-                content: (
-                  <CodeBlock
-                    label="Phone OTP"
-                    code={`use futureauth::OtpChannel;
-
-futureauth.send_otp(OtpChannel::Phone, "+15551234567").await?;
-// SDK generates a code, stores it in your DB, then calls
-// FutureAuth API to deliver it via Twilio SMS`}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                ),
-              },
-            ]}
-          />
-        </Section>
-
-        {/* Step 5 */}
-        <Section id="verify-otp" title="5. Verify OTP">
-          <CodeBlock
-            label="Verify and create session"
-            code={`// Returns (User, Session) on success
-let (user, session) = futureauth.verify_otp(
-    "user@example.com",  // or phone number
-    "123456",            // the code they entered
-    Some("127.0.0.1"),   // optional: IP address
-    Some("Mozilla/5.0"), // optional: user agent
-).await?;
-
-// Set a cookie with the session token
-// Cookie name defaults to "futureauth_session"
-set_cookie("futureauth_session", &session.token);`}
-            copied={copied}
-            onCopy={copy}
-          />
-          <p className="text-sm text-gray-500 mt-2">
-            If the user doesn't exist, they're auto-created. The verification code is deleted after use.
-          </p>
-        </Section>
-
-        {/* Step 6 */}
-        <Section id="session-check" title="6. Validate sessions">
-          <CodeBlock
-            label="Session validation"
-            code={`// Extract token from cookie and validate
-let token = get_cookie("futureauth_session");
-match futureauth.get_session(&token).await? {
-    Some((user, session)) => {
-        // Authenticated! Use user.id, user.email, etc.
-    }
-    None => {
-        // Invalid or expired session
-    }
-}`}
-            copied={copied}
-            onCopy={copy}
-          />
-        </Section>
-
-        {/* Step 7 - Axum Integration */}
-        <Section id="axum" title="7. Axum integration (optional)">
-          <p className="mb-3">
-            Enable the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">axum-integration</code> feature for pre-built routes and an auth extractor.
-          </p>
-          <CodeBlock
-            label="Axum routes + extractor"
-            code={`use futureauth::axum::{auth_router, AuthSession};
+          {/* Quick Start */}
+          <Section id="quick-start" title="Quick Start">
+            <p>A complete example — from zero to authenticated routes in under 30 lines:</p>
+            <CodeBlock
+              label="src/main.rs"
+              code={`use futureauth::{FutureAuth, FutureAuthConfig};
+use futureauth::axum::{auth_router, AuthSession};
 use axum::{Router, routing::get, Json};
+use sqlx::PgPool;
+use std::sync::Arc;
 
-let app = Router::new()
-    // Mounts: POST /api/auth/send-otp
-    //         POST /api/auth/verify-otp
-    //         GET  /api/auth/session
-    //         POST /api/auth/sign-out
-    .nest("/api/auth", auth_router())
-    // Use AuthSession extractor for protected routes
-    .route("/api/me", get(me_handler))
-    .with_state(futureauth);
+#[derive(Clone)]
+struct AppState {
+    auth: Arc<FutureAuth>,
+}
 
-// AuthSession extracts + validates the session from cookie
-async fn me_handler(auth: AuthSession) -> Json<serde_json::Value> {
-    serde_json::json!({
+// Required for AuthSession extractor
+impl AsRef<Arc<FutureAuth>> for AppState {
+    fn as_ref(&self) -> &Arc<FutureAuth> { &self.auth }
+}
+
+#[tokio::main]
+async fn main() {
+    let pool = PgPool::connect(&std::env::var("DATABASE_URL").unwrap()).await.unwrap();
+
+    let auth = FutureAuth::new(pool.clone(), FutureAuthConfig {
+        api_url: "${futureauthUrl}".into(),
+        secret_key: std::env::var("FUTUREAUTH_SECRET_KEY").unwrap(),
+        project_name: "My App".into(),
+        ..Default::default()
+    });
+    auth.ensure_tables().await.unwrap();
+
+    let state = AppState { auth: Arc::new(auth) };
+
+    let app = Router::new()
+        .nest("/api/auth", auth_router())
+        .route("/api/me", get(me))
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+
+async fn me(auth: AuthSession) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
         "id": auth.user.id,
         "email": auth.user.email,
-    }).into()
+    }))
 }`}
-            copied={copied}
-            onCopy={copy}
-          />
-        </Section>
+              copied={copied}
+              onCopy={copy}
+            />
+            <p className="text-sm text-gray-500 mt-3">
+              This gives you four auth endpoints and a protected route, all backed by your own Postgres.
+            </p>
+          </Section>
 
-        {/* Step 8 */}
-        <Section id="sign-out" title="8. Sign out">
-          <CodeBlock
-            label="Revoke session"
-            code={`// Revoke a single session
-futureauth.revoke_session(&token).await?;
+          {/* Configuration */}
+          <Section id="configuration" title="Configuration">
+            <p>The <code className="code-inline">FutureAuthConfig</code> struct controls all SDK behavior:</p>
+            <CodeBlock
+              label="Configuration options"
+              code={`FutureAuthConfig {
+    // Required
+    api_url: String,         // FutureAuth API URL (e.g. "https://future-auth.com")
+    secret_key: String,      // Your project's secret key from the dashboard
 
-// Or revoke all sessions for a user
-futureauth.revoke_all_sessions(&user.id).await?;`}
-            copied={copied}
-            onCopy={copy}
-          />
-        </Section>
-
-        {/* Config */}
-        <Section id="config" title="Configuration">
-          <CodeBlock
-            label="FutureAuthConfig options"
-            code={`FutureAuthConfig {
-    api_url: String,         // FutureAuth server URL
-    secret_key: String,      // Project secret key
-    project_name: String,    // Shown in OTP emails/SMS
-    session_ttl: Duration,   // Default: 30 days
-    otp_ttl: Duration,       // Default: 10 minutes
-    otp_length: usize,       // Default: 6 digits
-    cookie_name: String,     // Default: "futureauth_session"
+    // Optional (shown with defaults)
+    project_name: String,    // "My App" — shown in OTP emails/SMS
+    session_ttl: Duration,   // 30 days — how long sessions last
+    otp_ttl: Duration,       // 10 minutes — how long OTP codes are valid
+    otp_length: usize,       // 6 — number of digits in OTP codes
+    cookie_name: String,     // "futureauth_session" — cookie name for session token
 }`}
-            copied={copied}
-            onCopy={copy}
-          />
-        </Section>
+              copied={copied}
+              onCopy={copy}
+            />
+            <h4 className="font-semibold text-gray-900 mt-6 mb-2">Environment variables</h4>
+            <CodeBlock
+              label=".env"
+              code={`DATABASE_URL=postgres://user:pass@host:5432/mydb
+FUTUREAUTH_SECRET_KEY=vx_sec_xxxxxxxxxxxx`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <Callout type="warn">
+              Save your secret key when you create a project — it's only shown once. If you lose it, delete the project and create a new one.
+            </Callout>
+          </Section>
 
-        {/* Database Schema */}
-        <Section id="schema" title="Database schema">
-          <p className="mb-3">
-            The SDK creates these tables in your database via <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ensure_tables()</code>.
-            All columns are snake_case.
-          </p>
-          <CodeBlock
-            label="Tables created in your database"
-            code={`"user"         — id, email, phone, name, email_verified, phone_verified, image, created_at, updated_at
-session        — id, user_id, token, ip_address, user_agent, expires_at, created_at
-verification   — id, identifier, code, expires_at, created_at`}
-            copied={copied}
-            onCopy={copy}
-          />
-        </Section>
+          {/* Send OTP */}
+          <Section id="send-otp" title="Sending OTP">
+            <p>
+              <code className="code-inline">send_otp()</code> generates a random code, stores it in your database's <code className="code-inline">verification</code> table,
+              then calls the FutureAuth API to deliver it via email or SMS.
+            </p>
+            <Tabs
+              tabs={[
+                {
+                  label: 'Email',
+                  content: (
+                    <CodeBlock
+                      label="Send email OTP"
+                      code={`use futureauth::OtpChannel;
 
-        {/* API Keys */}
-        <Section id="api-keys" title="Dashboard API keys">
-          <p className="mb-3">
-            You can also manage projects programmatically using dashboard API keys. Create one in{' '}
-            <Link to="/settings" className="text-emerald-600 underline">Settings</Link>.
-          </p>
-          <CodeBlock
-            label="cURL"
-            code={`# List your projects
-curl -H "Authorization: Bearer vxk_YOUR_API_KEY" \\
-  ${futureauthUrl}/api/projects
+// Send a 6-digit code to the user's email via Resend
+auth.send_otp(OtpChannel::Email, "user@example.com").await?;`}
+                      copied={copied}
+                      onCopy={copy}
+                    />
+                  ),
+                },
+                {
+                  label: 'SMS',
+                  content: (
+                    <CodeBlock
+                      label="Send SMS OTP"
+                      code={`use futureauth::OtpChannel;
 
-# Create a project
-curl -X POST -H "Authorization: Bearer vxk_YOUR_API_KEY" \\
+// Send a 6-digit code to the user's phone via Twilio
+auth.send_otp(OtpChannel::Phone, "+15551234567").await?;`}
+                      copied={copied}
+                      onCopy={copy}
+                    />
+                  ),
+                },
+              ]}
+            />
+            <h4 className="font-semibold text-gray-900 mt-4 mb-2">What happens internally</h4>
+            <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+              <li>Any existing codes for this identifier are deleted</li>
+              <li>A new random code is generated (default: 6 digits)</li>
+              <li>The code is stored in the <code className="code-inline">verification</code> table with an expiry time</li>
+              <li>The FutureAuth API is called to deliver the code via the appropriate channel</li>
+            </ol>
+            <Callout type="info">
+              Codes are single-use. Sending a new code invalidates any previous unused code for the same identifier.
+            </Callout>
+          </Section>
+
+          {/* Verify OTP */}
+          <Section id="verify-otp" title="Verifying OTP">
+            <p>
+              <code className="code-inline">verify_otp()</code> checks the code against the <code className="code-inline">verification</code> table, creates or finds the user,
+              and creates a new session — all locally in your database.
+            </p>
+            <CodeBlock
+              label="Verify OTP and create session"
+              code={`let (user, session) = auth.verify_otp(
+    "user@example.com",  // the identifier (email or phone)
+    "123456",            // the code the user entered
+    Some("127.0.0.1"),   // optional: client IP address
+    Some("Mozilla/5.0"), // optional: client user agent
+).await?;
+
+// user.id        — unique user ID
+// user.email     — the verified email address
+// session.token  — opaque session token (set this as a cookie)`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <h4 className="font-semibold text-gray-900 mt-4 mb-2">What happens internally</h4>
+            <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+              <li>Looks up the code in the <code className="code-inline">verification</code> table</li>
+              <li>Checks if the code is expired (default: 10 minutes)</li>
+              <li>Deletes the code (single-use)</li>
+              <li>Finds or creates the user by email/phone</li>
+              <li>Marks the email/phone as verified on the user record</li>
+              <li>Creates a new session with a random opaque token</li>
+              <li>Returns the <code className="code-inline">(User, Session)</code> tuple</li>
+            </ol>
+            <Callout type="info">
+              If the user doesn't exist, <code className="text-xs">verify_otp()</code> auto-creates them. This is a combined sign-up and sign-in flow.
+            </Callout>
+          </Section>
+
+          {/* Sessions */}
+          <Section id="sessions" title="Sessions">
+            <p>
+              Sessions are opaque tokens stored in the <code className="code-inline">session</code> table. Validate them with <code className="code-inline">get_session()</code>:
+            </p>
+            <CodeBlock
+              label="Session validation"
+              code={`// Validate a session token (e.g., from a cookie)
+match auth.get_session("session_token_here").await? {
+    Some((user, session)) => {
+        // Authenticated
+        println!("User: {} ({})", user.id, user.email.unwrap_or_default());
+        println!("Session expires: {}", session.expires_at);
+    }
+    None => {
+        // Invalid or expired
+    }
+}`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <h4 className="font-semibold text-gray-900 mt-4 mb-2">Session properties</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Field</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Type</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-600">
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">id</td><td className="px-4 py-2">String</td><td className="px-4 py-2">Unique session ID</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">user_id</td><td className="px-4 py-2">String</td><td className="px-4 py-2">References the user</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">token</td><td className="px-4 py-2">String</td><td className="px-4 py-2">Opaque session token (stored in cookie)</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">ip_address</td><td className="px-4 py-2">Option&lt;String&gt;</td><td className="px-4 py-2">Client IP (set on creation)</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">user_agent</td><td className="px-4 py-2">Option&lt;String&gt;</td><td className="px-4 py-2">Client user agent (set on creation)</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">expires_at</td><td className="px-4 py-2">DateTime&lt;Utc&gt;</td><td className="px-4 py-2">When the session expires (default: 30 days from creation)</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">created_at</td><td className="px-4 py-2">DateTime&lt;Utc&gt;</td><td className="px-4 py-2">When the session was created</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
+          {/* Sign Out */}
+          <Section id="sign-out" title="Sign Out">
+            <CodeBlock
+              label="Revoke sessions"
+              code={`// Revoke a specific session
+auth.revoke_session("session_token_here").await?;
+
+// Revoke ALL sessions for a user (e.g., "sign out everywhere")
+auth.revoke_all_sessions("user_id_here").await?;`}
+              copied={copied}
+              onCopy={copy}
+            />
+          </Section>
+
+          {/* Axum Setup */}
+          <Section id="axum-setup" title="Axum Integration — Setup">
+            <p>
+              The <code className="code-inline">axum-integration</code> feature provides pre-built routes and an <code className="code-inline">AuthSession</code> extractor.
+            </p>
+            <CodeBlock
+              label="Cargo.toml"
+              code={`[dependencies]
+futureauth = { version = "0.1", features = ["axum-integration"] }`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <p className="mt-3">
+              Your Axum state must implement <code className="code-inline">AsRef&lt;Arc&lt;FutureAuth&gt;&gt;</code>:
+            </p>
+            <CodeBlock
+              label="AppState"
+              code={`use std::sync::Arc;
+use futureauth::FutureAuth;
+
+#[derive(Clone)]
+struct AppState {
+    db: PgPool,
+    auth: Arc<FutureAuth>,
+    // ... your other fields
+}
+
+impl AsRef<Arc<FutureAuth>> for AppState {
+    fn as_ref(&self) -> &Arc<FutureAuth> {
+        &self.auth
+    }
+}`}
+              copied={copied}
+              onCopy={copy}
+            />
+          </Section>
+
+          {/* Axum Routes */}
+          <Section id="axum-routes" title="Axum Integration — Auth Routes">
+            <p>Mount the built-in auth router to get all four auth endpoints:</p>
+            <CodeBlock
+              label="Router setup"
+              code={`use futureauth::axum::auth_router;
+
+let app = Router::new()
+    .nest("/api/auth", auth_router())
+    .with_state(state);`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <h4 className="font-semibold text-gray-900 mt-4 mb-2">Endpoints provided</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Method</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Path</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-600">
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/send-otp</td><td className="px-4 py-2">Send a verification code</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/verify-otp</td><td className="px-4 py-2">Verify code, create session</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">GET</td><td className="px-4 py-2 font-mono text-xs">/session</td><td className="px-4 py-2">Get current user + session</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/sign-out</td><td className="px-4 py-2">Revoke current session</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h4 className="font-semibold text-gray-900 mt-6 mb-2">Request/Response formats</h4>
+            <CodeBlock
+              label="POST /api/auth/send-otp"
+              code={`// Request
+{ "channel": "email", "destination": "user@example.com" }
+
+// Response (200 OK)
+{ "message": "OTP sent" }`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <CodeBlock
+              label="POST /api/auth/verify-otp"
+              code={`// Request
+{ "identifier": "user@example.com", "code": "123456" }
+
+// Response (200 OK) — also sets futureauth_session cookie
+{
+  "user": { "id": "abc123", "email": "user@example.com", ... },
+  "session": { "token": "...", "expires_at": "2026-04-28T..." }
+}`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <CodeBlock
+              label="GET /api/auth/session"
+              code={`// Requires futureauth_session cookie
+// Response (200 OK)
+{
+  "user": { "id": "abc123", "email": "user@example.com", ... },
+  "session": { "token": "...", "expires_at": "2026-04-28T..." }
+}
+
+// Response (401) if no valid session
+{ "error": "Not authenticated" }`}
+              copied={copied}
+              onCopy={copy}
+            />
+          </Section>
+
+          {/* Axum Extractor */}
+          <Section id="axum-extractor" title="Axum Integration — AuthSession Extractor">
+            <p>
+              Use <code className="code-inline">AuthSession</code> as a handler parameter to require authentication:
+            </p>
+            <CodeBlock
+              label="Protected route"
+              code={`use futureauth::axum::AuthSession;
+
+async fn protected_handler(auth: AuthSession) -> Json<serde_json::Value> {
+    // auth.user  — the authenticated User
+    // auth.session — the current Session
+
+    Json(serde_json::json!({
+        "user_id": auth.user.id,
+        "email": auth.user.email,
+        "phone": auth.user.phone,
+        "session_expires": auth.session.expires_at,
+    }))
+}
+
+// Returns 401 automatically if no valid session cookie is present`}
+              copied={copied}
+              onCopy={copy}
+            />
+          </Section>
+
+          {/* AppState Pattern */}
+          <Section id="axum-state" title="Axum Integration — AppState Pattern">
+            <p>
+              If your app has other state (database pool, config, etc.), wrap FutureAuth in your state struct:
+            </p>
+            <CodeBlock
+              label="Full AppState example"
+              code={`use std::sync::Arc;
+use futureauth::FutureAuth;
+use sqlx::PgPool;
+
+#[derive(Clone)]
+struct AppState {
+    db: PgPool,
+    auth: Arc<FutureAuth>,
+    config: AppConfig,
+}
+
+impl AsRef<Arc<FutureAuth>> for AppState {
+    fn as_ref(&self) -> &Arc<FutureAuth> { &self.auth }
+}
+
+// Now both auth_router() and AuthSession work with your state
+let app = Router::new()
+    .nest("/api/auth", auth_router())
+    .route("/api/me", get(me))
+    .route("/api/data", get(data))
+    .with_state(state);
+
+async fn me(auth: AuthSession) -> impl IntoResponse { ... }
+async fn data(
+    auth: AuthSession,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    // Access both auth and your custom state
+    let rows = sqlx::query("SELECT * FROM items WHERE owner = $1")
+        .bind(&auth.user.id)
+        .fetch_all(&state.db)
+        .await?;
+    // ...
+}`}
+              copied={copied}
+              onCopy={copy}
+            />
+          </Section>
+
+          {/* Schema */}
+          <Section id="schema" title="Database Schema">
+            <p>
+              The SDK creates three tables in your database via <code className="code-inline">ensure_tables()</code>.
+              All columns use <strong>snake_case</strong>. Tables are created with <code className="code-inline">IF NOT EXISTS</code> — safe to call on every startup.
+            </p>
+            <CodeBlock
+              label="user table"
+              code={`CREATE TABLE IF NOT EXISTS "user" (
+    id              TEXT PRIMARY KEY,
+    email           TEXT UNIQUE,
+    phone           TEXT UNIQUE,
+    name            TEXT,
+    email_verified  BOOLEAN NOT NULL DEFAULT FALSE,
+    phone_verified  BOOLEAN NOT NULL DEFAULT FALSE,
+    image           TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <CodeBlock
+              label="session table"
+              code={`CREATE TABLE IF NOT EXISTS session (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    token       TEXT NOT NULL UNIQUE,
+    ip_address  TEXT,
+    user_agent  TEXT,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <CodeBlock
+              label="verification table"
+              code={`CREATE TABLE IF NOT EXISTS verification (
+    id          TEXT PRIMARY KEY,
+    identifier  TEXT NOT NULL,
+    code        TEXT NOT NULL,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);`}
+              copied={copied}
+              onCopy={copy}
+            />
+          </Section>
+
+          {/* API Reference */}
+          <Section id="api-reference" title="SDK API Reference">
+            <h4 className="font-semibold text-gray-900 mb-2 font-mono text-sm">FutureAuth::new(pool, config)</h4>
+            <p className="text-sm text-gray-600 mb-4">Create a new FutureAuth instance. Does not create tables — call <code className="code-inline">ensure_tables()</code> separately.</p>
+
+            <h4 className="font-semibold text-gray-900 mb-2 font-mono text-sm">ensure_tables() -&gt; Result&lt;()&gt;</h4>
+            <p className="text-sm text-gray-600 mb-4">Creates the <code className="code-inline">user</code>, <code className="code-inline">session</code>, and <code className="code-inline">verification</code> tables if they don't exist. Idempotent.</p>
+
+            <h4 className="font-semibold text-gray-900 mb-2 font-mono text-sm">send_otp(channel, destination) -&gt; Result&lt;()&gt;</h4>
+            <p className="text-sm text-gray-600 mb-1">Generate and deliver an OTP code.</p>
+            <ul className="text-sm text-gray-500 list-disc list-inside mb-4">
+              <li><code className="code-inline">channel</code> — <code className="code-inline">OtpChannel::Email</code> or <code className="code-inline">OtpChannel::Phone</code></li>
+              <li><code className="code-inline">destination</code> — email address or phone number (E.164 format for SMS)</li>
+            </ul>
+
+            <h4 className="font-semibold text-gray-900 mb-2 font-mono text-sm">verify_otp(identifier, code, ip, user_agent) -&gt; Result&lt;(User, Session)&gt;</h4>
+            <p className="text-sm text-gray-600 mb-1">Verify a code and create a session. Auto-creates the user if they don't exist.</p>
+            <ul className="text-sm text-gray-500 list-disc list-inside mb-4">
+              <li><code className="code-inline">identifier</code> — the email or phone that was used with <code className="code-inline">send_otp()</code></li>
+              <li><code className="code-inline">code</code> — the 6-digit code the user entered</li>
+              <li><code className="code-inline">ip</code> — optional client IP address (stored on session)</li>
+              <li><code className="code-inline">user_agent</code> — optional client user agent (stored on session)</li>
+            </ul>
+
+            <h4 className="font-semibold text-gray-900 mb-2 font-mono text-sm">get_session(token) -&gt; Result&lt;Option&lt;(User, Session)&gt;&gt;</h4>
+            <p className="text-sm text-gray-600 mb-4">Validate a session token. Returns <code className="code-inline">None</code> if the token is invalid or expired. No network call — fully local.</p>
+
+            <h4 className="font-semibold text-gray-900 mb-2 font-mono text-sm">revoke_session(token) -&gt; Result&lt;()&gt;</h4>
+            <p className="text-sm text-gray-600 mb-4">Delete a specific session by token.</p>
+
+            <h4 className="font-semibold text-gray-900 mb-2 font-mono text-sm">revoke_all_sessions(user_id) -&gt; Result&lt;()&gt;</h4>
+            <p className="text-sm text-gray-600 mb-4">Delete all sessions for a user. Useful for "sign out everywhere".</p>
+          </Section>
+
+          {/* REST API */}
+          <Section id="rest-api" title="REST API Endpoints">
+            <p>
+              These are the endpoints the SDK calls on the FutureAuth server. You don't call these directly — the SDK handles it.
+              Documented here for reference.
+            </p>
+            <div className="overflow-x-auto mt-4">
+              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Method</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Path</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Auth</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-600">
+                  <tr className="border-t">
+                    <td className="px-4 py-2 font-mono text-xs">POST</td>
+                    <td className="px-4 py-2 font-mono text-xs">/api/v1/otp/send</td>
+                    <td className="px-4 py-2 text-xs">Secret key</td>
+                    <td className="px-4 py-2">Deliver an OTP code via email or SMS</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
+          {/* Dashboard API */}
+          <Section id="dashboard-api" title="Dashboard API">
+            <p>
+              Manage projects and API keys programmatically. Create API keys in{' '}
+              <Link to="/settings" className="text-emerald-600 underline">Settings</Link>.
+            </p>
+            <h4 className="font-semibold text-gray-900 mt-4 mb-2">Authentication</h4>
+            <CodeBlock
+              label="API key header"
+              code={`Authorization: Bearer vxk_YOUR_API_KEY`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <h4 className="font-semibold text-gray-900 mt-4 mb-2">Endpoints</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Method</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Path</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-600">
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">GET</td><td className="px-4 py-2 font-mono text-xs">/api/projects</td><td className="px-4 py-2">List your projects</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/api/projects</td><td className="px-4 py-2">Create a project</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">GET</td><td className="px-4 py-2 font-mono text-xs">/api/projects/:id</td><td className="px-4 py-2">Get project details</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">PUT</td><td className="px-4 py-2 font-mono text-xs">/api/projects/:id</td><td className="px-4 py-2">Update a project</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">DELETE</td><td className="px-4 py-2 font-mono text-xs">/api/projects/:id</td><td className="px-4 py-2">Delete a project</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">GET</td><td className="px-4 py-2 font-mono text-xs">/api/keys</td><td className="px-4 py-2">List API keys</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/api/keys</td><td className="px-4 py-2">Create an API key</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">DELETE</td><td className="px-4 py-2 font-mono text-xs">/api/keys/:id</td><td className="px-4 py-2">Delete an API key</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <h4 className="font-semibold text-gray-900 mt-6 mb-2">Examples</h4>
+            <CodeBlock
+              label="Create a project"
+              code={`curl -X POST ${futureauthUrl}/api/projects \\
+  -H "Authorization: Bearer vxk_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"name":"My App","otp_mode":"email"}' \\
-  ${futureauthUrl}/api/projects`}
-            copied={copied}
-            onCopy={copy}
-          />
-        </Section>
+  -d '{"name": "My App", "otp_mode": "email"}'
 
-        {/* Troubleshooting */}
-        <Section id="troubleshooting" title="Troubleshooting">
-          <div className="space-y-4">
-            <TroubleshootItem
-              q="OtpDeliveryFailed error"
-              a="Check that your FutureAuth project has valid Resend (email) or Twilio (SMS) credentials configured on the server. Verify your secret key is correct."
+# Response:
+# {
+#   "id": "abc123",
+#   "name": "My App",
+#   "otp_mode": "email",
+#   "publishable_key": "vx_pub_xxxx",
+#   "secret_key": "vx_sec_xxxx",
+#   "created_at": "2026-03-29T..."
+# }`}
+              copied={copied}
+              onCopy={copy}
             />
-            <TroubleshootItem
-              q="InvalidOtp or OtpExpired"
-              a="The code was wrong or expired (default: 10 minutes). Codes are single-use and deleted after verification."
+          </Section>
+
+          {/* Errors */}
+          <Section id="errors" title="Error Handling">
+            <p>The SDK returns <code className="code-inline">FutureAuthError</code> for all operations:</p>
+            <div className="overflow-x-auto mt-4">
+              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Error</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">When</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">What to do</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-600">
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">InvalidOtp</td><td className="px-4 py-2">Wrong code entered</td><td className="px-4 py-2">Ask user to re-enter or resend</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">OtpExpired</td><td className="px-4 py-2">Code expired (default: 10 min)</td><td className="px-4 py-2">Send a new code</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">OtpDeliveryFailed</td><td className="px-4 py-2">FutureAuth API couldn't send</td><td className="px-4 py-2">Check secret key, project config</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">SessionNotFound</td><td className="px-4 py-2">Invalid/expired token</td><td className="px-4 py-2">Redirect to sign-in</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">DatabaseError</td><td className="px-4 py-2">sqlx error</td><td className="px-4 py-2">Check DATABASE_URL, connectivity</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <CodeBlock
+              label="Error handling example"
+              code={`use futureauth::FutureAuthError;
+
+match auth.verify_otp(email, code, ip, ua).await {
+    Ok((user, session)) => { /* success */ }
+    Err(FutureAuthError::InvalidOtp) => { /* wrong code */ }
+    Err(FutureAuthError::OtpExpired) => { /* code expired */ }
+    Err(e) => { /* other error */ }
+}`}
+              copied={copied}
+              onCopy={copy}
             />
-            <TroubleshootItem
-              q="Session not found"
-              a="The session token is invalid or expired. Sessions default to 30 days. Check that the cookie name matches your config."
-            />
-            <TroubleshootItem
-              q="Database errors on startup"
-              a="Make sure ensure_tables() runs before any auth operations. Check your DATABASE_URL is correct and the database is accessible."
-            />
+          </Section>
+
+          {/* Troubleshooting */}
+          <Section id="troubleshooting" title="Troubleshooting">
+            <div className="space-y-6">
+              <TroubleshootItem
+                q="OtpDeliveryFailed error when calling send_otp()"
+                a="The FutureAuth API could not deliver the code. Check that: (1) your secret key is correct, (2) the project exists and is configured for the right OTP mode, (3) the FutureAuth API is reachable from your server."
+              />
+              <TroubleshootItem
+                q="InvalidOtp or OtpExpired when calling verify_otp()"
+                a="The code was wrong or expired. Codes expire after 10 minutes by default (configurable via otp_ttl). Codes are single-use — once verified, they're deleted. Sending a new code also invalidates any previous code."
+              />
+              <TroubleshootItem
+                q="Session validation always returns None"
+                a="Check that: (1) the cookie name matches your config (default: futureauth_session), (2) sessions haven't expired (default: 30 days), (3) you're passing the raw token, not the cookie header."
+              />
+              <TroubleshootItem
+                q="Database errors on startup"
+                a="Make sure ensure_tables() runs before any auth operations. Verify your DATABASE_URL is correct and the Postgres database is accessible. The SDK needs CREATE TABLE permissions."
+              />
+              <TroubleshootItem
+                q="AuthSession extractor returns 401 unexpectedly"
+                a="The extractor reads the futureauth_session cookie. Make sure: (1) the cookie is being set correctly after verify_otp, (2) the cookie domain/path matches your setup, (3) your AppState implements AsRef<Arc<FutureAuth>>."
+              />
+              <TroubleshootItem
+                q="How do I use FutureAuth without Axum?"
+                a='Don&apos;t enable the axum-integration feature. Use the core SDK methods directly: send_otp(), verify_otp(), get_session(), revoke_session(). You handle cookie/token extraction yourself.'
+              />
+            </div>
+          </Section>
+
+          {/* Footer links */}
+          <div className="border-t border-gray-200 pt-8 mt-12 flex flex-wrap gap-6 text-sm">
+            <a href="https://crates.io/crates/futureauth" target="_blank" rel="noopener" className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5">
+              <Package size={14} />
+              crates.io/crates/futureauth
+            </a>
+            <a href="https://github.com/ethereumdegen/futureauth-sdk" target="_blank" rel="noopener" className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5">
+              <Terminal size={14} />
+              GitHub
+            </a>
+            <Link to="/sign-in" className="text-emerald-600 hover:text-emerald-700">
+              Dashboard
+            </Link>
           </div>
-        </Section>
+        </div>
       </div>
     </div>
   )
 }
 
+function SidebarGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-4">
+      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{title}</h4>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  )
+}
+
+function SidebarLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} className="block px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded transition-colors text-sm">
+      {children}
+    </a>
+  )
+}
+
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
-    <section id={id} className="mb-12">
+    <section id={id} className="mb-14 scroll-mt-20">
       <h2 className="text-xl font-bold text-gray-900 mb-3">{title}</h2>
       <div className="text-gray-600 text-[15px] leading-relaxed">{children}</div>
     </section>
@@ -369,9 +884,12 @@ function Tabs({ tabs }: { tabs: { label: string; content: React.ReactNode }[] })
   )
 }
 
-function Callout({ children }: { children: React.ReactNode }) {
+function Callout({ children, type = 'info' }: { children: React.ReactNode; type?: 'info' | 'warn' }) {
+  const styles = type === 'warn'
+    ? 'border-amber-400 bg-amber-50 text-amber-800'
+    : 'border-emerald-400 bg-emerald-50 text-emerald-800'
   return (
-    <div className="border-l-2 border-amber-400 bg-amber-50 px-4 py-3 rounded-r-lg text-sm text-amber-800 mt-4">
+    <div className={`border-l-2 px-4 py-3 rounded-r-lg text-sm mt-4 ${styles}`}>
       {children}
     </div>
   )
