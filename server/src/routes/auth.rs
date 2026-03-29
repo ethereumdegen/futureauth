@@ -4,11 +4,9 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use rand::Rng;
 use serde::Deserialize;
 
 use crate::AppState;
-use crate::models::developer::{Developer, DeveloperSession};
 
 #[derive(Deserialize)]
 pub struct SendOtpRequest {
@@ -21,23 +19,30 @@ pub struct VerifyOtpRequest {
     pub code: String,
 }
 
+/// Send OTP — stores code in SDK's verification table, sends email directly.
+/// This is the only auth route that doesn't fully delegate to the SDK,
+/// because this server IS the email delivery service.
 pub async fn send_otp(
     State(state): State<AppState>,
     Json(body): Json<SendOtpRequest>,
 ) -> impl IntoResponse {
-    let code = generate_otp(6);
+    // Generate code
+    let code: String = {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        (0..6).map(|_| rng.gen_range(0..10).to_string()).collect()
+    };
 
-    // Delete old codes for this email
-    let _ = sqlx::query("DELETE FROM developer_verification WHERE email = $1")
+    // Delete old codes and store new one (same table the SDK's verify_otp reads from)
+    let _ = sqlx::query("DELETE FROM verification WHERE identifier = $1")
         .bind(&body.email)
         .execute(&state.db)
         .await;
 
-    // Store code
     let id = nanoid::nanoid!();
     let expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
     if let Err(e) = sqlx::query(
-        "INSERT INTO developer_verification (id, email, code, expires_at) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO verification (id, identifier, code, expires_at) VALUES ($1, $2, $3, $4)",
     )
     .bind(&id)
     .bind(&body.email)
@@ -50,7 +55,7 @@ pub async fn send_otp(
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Failed to send code" }))).into_response();
     }
 
-    // Send via Resend
+    // Send via Resend directly (we ARE the email service)
     if let Some(api_key) = &state.config.resend_api_key {
         if let Err(e) = crate::services::email::send_otp_email(
             &state.http,
@@ -72,96 +77,55 @@ pub async fn send_otp(
     (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
 }
 
+/// Verify OTP — fully delegated to the SDK. Creates user + session in SDK tables.
 pub async fn verify_otp(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<VerifyOtpRequest>,
 ) -> impl IntoResponse {
-    // Find and validate code
-    let row = sqlx::query_as::<_, (String, String, chrono::DateTime<chrono::Utc>)>(
-        "SELECT id, code, expires_at FROM developer_verification WHERE email = $1 AND code = $2",
-    )
-    .bind(&body.email)
-    .bind(&body.code)
-    .fetch_optional(&state.db)
-    .await;
-
-    let (v_id, _, expires_at) = match row {
-        Ok(Some(r)) => r,
-        _ => {
-            return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid or expired code" }))).into_response();
-        }
-    };
-
-    if expires_at < chrono::Utc::now() {
-        let _ = sqlx::query("DELETE FROM developer_verification WHERE id = $1")
-            .bind(&v_id)
-            .execute(&state.db)
-            .await;
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Code expired" }))).into_response();
-    }
-
-    // Delete used code
-    let _ = sqlx::query("DELETE FROM developer_verification WHERE id = $1")
-        .bind(&v_id)
-        .execute(&state.db)
-        .await;
-
-    // Find or create developer
-    let developer = match Developer::find_or_create_by_email(&state.db, &body.email).await {
-        Ok(d) => d,
-        Err(e) => {
-            tracing::error!("Failed to create developer: {e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Internal error" }))).into_response();
-        }
-    };
-
-    let ip = headers.get("x-forwarded-for")
+    let ip = headers
+        .get("x-forwarded-for")
         .or_else(|| headers.get("x-real-ip"))
         .and_then(|v| v.to_str().ok())
         .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
 
-    let ua = headers.get("user-agent")
+    let ua = headers
+        .get("user-agent")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    let session = match DeveloperSession::create(
-        &state.db,
-        &developer.id,
-        ip.as_deref(),
-        ua.as_deref(),
-    )
-    .await
-    {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!("Failed to create session: {e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Internal error" }))).into_response();
+    match state.auth.verify_otp(&body.email, &body.code, ip.as_deref(), ua.as_deref()).await {
+        Ok((user, session)) => {
+            let cookie_name = &state.auth.config.cookie_name;
+            let cookie = format!(
+                "{cookie_name}={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
+                session.token,
+                state.auth.config.session_ttl.as_secs()
+            );
+            (
+                StatusCode::OK,
+                [("set-cookie", cookie)],
+                Json(serde_json::json!({ "user": user })),
+            )
+                .into_response()
         }
-    };
-
-    let cookie = format!(
-        "futureauth_dashboard={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
-        session.token,
-        30 * 24 * 60 * 60
-    );
-
-    (
-        StatusCode::OK,
-        [("set-cookie", cookie)],
-        Json(serde_json::json!({ "user": developer })),
-    )
-        .into_response()
+        Err(e) => {
+            tracing::warn!("OTP verification failed: {e}");
+            (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid or expired code" }))).into_response()
+        }
+    }
 }
 
+/// Get session — fully delegated to the SDK.
 pub async fn get_session(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
     let cookie_header = headers.get("cookie").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let cookie_name = &state.auth.config.cookie_name;
     let token = cookie_header
         .split(';')
-        .filter_map(|c| c.trim().strip_prefix("futureauth_dashboard="))
+        .filter_map(|c| c.trim().strip_prefix(&format!("{cookie_name}=")))
         .next();
 
     let token = match token {
@@ -169,32 +133,29 @@ pub async fn get_session(
         None => return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Not authenticated" }))).into_response(),
     };
 
-    match DeveloperSession::find_by_token(&state.db, token).await {
-        Ok(Some((dev, _session))) => {
-            (StatusCode::OK, Json(serde_json::json!({ "user": dev }))).into_response()
+    match state.auth.get_session(token).await {
+        Ok(Some((user, _session))) => {
+            (StatusCode::OK, Json(serde_json::json!({ "user": user }))).into_response()
         }
         _ => (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Not authenticated" }))).into_response(),
     }
 }
 
+/// Sign out — fully delegated to the SDK.
 pub async fn sign_out(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
     let cookie_header = headers.get("cookie").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let cookie_name = &state.auth.config.cookie_name;
     if let Some(token) = cookie_header
         .split(';')
-        .filter_map(|c| c.trim().strip_prefix("futureauth_dashboard="))
+        .filter_map(|c| c.trim().strip_prefix(&format!("{cookie_name}=")))
         .next()
     {
-        let _ = DeveloperSession::delete_by_token(&state.db, token).await;
+        let _ = state.auth.revoke_session(token).await;
     }
 
-    let clear = "futureauth_dashboard=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+    let clear = format!("{cookie_name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
     (StatusCode::OK, [("set-cookie", clear)], Json(serde_json::json!({ "ok": true })))
-}
-
-fn generate_otp(len: usize) -> String {
-    let mut rng = rand::thread_rng();
-    (0..len).map(|_| rng.gen_range(0..10).to_string()).collect()
 }

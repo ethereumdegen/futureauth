@@ -28,7 +28,7 @@ pub async fn list(
     auth: DashboardAuth,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Project>>, AppError> {
-    let projects = Project::list_for_developer(&state.db, &auth.developer.id).await?;
+    let projects = Project::list_for_user(&state.db, &auth.user_id).await?;
     Ok(Json(projects))
 }
 
@@ -52,7 +52,7 @@ pub async fn create(
 
     let project = Project::create(
         &state.db,
-        &auth.developer.id,
+        &auth.user_id,
         &body.name,
         mode,
         &publishable_key,
@@ -60,7 +60,6 @@ pub async fn create(
     )
     .await?;
 
-    // Return secret key once (it's hashed in DB, never retrievable again)
     Ok((
         StatusCode::CREATED,
         Json(serde_json::json!({
@@ -79,7 +78,7 @@ pub async fn get(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<Project>, AppError> {
-    let project = Project::find_by_id(&state.db, &id, &auth.developer.id)
+    let project = Project::find_by_id(&state.db, &id, &auth.user_id)
         .await?
         .ok_or(AppError::NotFound)?;
     Ok(Json(project))
@@ -94,7 +93,7 @@ pub async fn update(
     let project = Project::update(
         &state.db,
         &id,
-        &auth.developer.id,
+        &auth.user_id,
         body.name.as_deref(),
         body.otp_mode.as_deref(),
     )
@@ -108,6 +107,6 @@ pub async fn delete(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    Project::delete(&state.db, &id, &auth.developer.id).await?;
+    Project::delete(&state.db, &id, &auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

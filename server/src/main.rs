@@ -5,6 +5,8 @@ mod models;
 mod routes;
 mod services;
 
+use std::sync::Arc;
+
 use axum::{
     routing::{get, post, put, delete as delete_route},
     Router,
@@ -14,6 +16,7 @@ use axum::{
 use sqlx::PgPool;
 use tower_http::cors::{CorsLayer, Any};
 use tower_http::trace::TraceLayer;
+use futureauth::{FutureAuth, FutureAuthConfig};
 
 use config::Config;
 
@@ -22,6 +25,13 @@ pub struct AppState {
     pub db: PgPool,
     pub config: Config,
     pub http: reqwest::Client,
+    pub auth: Arc<FutureAuth>,
+}
+
+impl AsRef<Arc<FutureAuth>> for AppState {
+    fn as_ref(&self) -> &Arc<FutureAuth> {
+        &self.auth
+    }
 }
 
 #[tokio::main]
@@ -40,13 +50,23 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
 
-    // Run migrations
+    // Run server-specific migrations (project, api_key tables)
     run_migrations(&pool).await;
+
+    // Initialize SDK — creates "user", session, verification tables (dogfooding)
+    let auth = FutureAuth::new(pool.clone(), FutureAuthConfig {
+        api_url: format!("http://127.0.0.1:{port}"),
+        secret_key: "unused-self-hosted".to_string(),
+        project_name: "FutureAuth".to_string(),
+        ..Default::default()
+    });
+    auth.ensure_tables().await.expect("Failed to create auth tables");
 
     let state = AppState {
         db: pool,
         config,
         http: reqwest::Client::new(),
+        auth,
     };
 
     let cors = CorsLayer::new()
@@ -58,7 +78,7 @@ async fn main() {
         .allow_credentials(true);
 
     let app = Router::new()
-        // Dashboard auth
+        // Dashboard auth (dogfoods SDK for verify/session/signout, custom send for direct email)
         .route("/api/auth/send-otp", post(routes::auth::send_otp))
         .route("/api/auth/verify-otp", post(routes::auth::verify_otp))
         .route("/api/auth/session", get(routes::auth::get_session))

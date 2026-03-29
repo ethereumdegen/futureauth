@@ -20,7 +20,7 @@ pub async fn list(
     auth: DashboardAuth,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<DeveloperApiKey>>, AppError> {
-    let keys = DeveloperApiKey::list_for_developer(&state.db, &auth.developer.id).await?;
+    let keys = DeveloperApiKey::list_for_user(&state.db, &auth.user_id).await?;
     Ok(Json(keys))
 }
 
@@ -34,7 +34,7 @@ pub async fn create(
     let prefix = format!("{}...", &raw_key[..12]);
     let hash = hash_key(&raw_key);
 
-    let key = DeveloperApiKey::create(&state.db, &auth.developer.id, &name, &hash, &prefix).await?;
+    let key = DeveloperApiKey::create(&state.db, &auth.user_id, &name, &hash, &prefix).await?;
 
     Ok((
         StatusCode::CREATED,
@@ -53,6 +53,6 @@ pub async fn delete(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    DeveloperApiKey::delete(&state.db, &id, &auth.developer.id).await?;
+    DeveloperApiKey::delete(&state.db, &id, &auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
