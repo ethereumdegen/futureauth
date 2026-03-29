@@ -37,7 +37,7 @@ export default function SignUp() {
     setLoading(true)
     setError('')
     try {
-      const res = await authClient.emailOtp.verifyEmail({
+      const res = await authClient.signIn.emailOtp({
         email,
         otp: code,
       })
