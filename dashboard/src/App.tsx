@@ -1,8 +1,8 @@
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router'
-import { useSession } from './lib/auth-client'
+import { getSession, type AuthUser } from './lib/auth-client'
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
-import SignUp from './pages/SignUp'
 import Dashboard from './pages/Dashboard'
 import ProjectDetail from './pages/ProjectDetail'
 import NewProject from './pages/NewProject'
@@ -10,9 +10,16 @@ import Settings from './pages/Settings'
 import Docs from './pages/Docs'
 
 export default function App() {
-  const { data: session, isPending } = useSession()
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  if (isPending) {
+  useEffect(() => {
+    getSession()
+      .then(data => setUser(data?.user ?? null))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
@@ -20,11 +27,10 @@ export default function App() {
     )
   }
 
-  if (!session) {
+  if (!user) {
     return (
       <Routes>
-        <Route path="/sign-in" element={<SignIn />} />
-        <Route path="/sign-up" element={<SignUp />} />
+        <Route path="/sign-in" element={<SignIn onAuth={setUser} />} />
         <Route path="*" element={<Landing />} />
       </Routes>
     )
@@ -32,7 +38,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Dashboard />} />
+      <Route path="/" element={<Dashboard user={user} onSignOut={() => setUser(null)} />} />
       <Route path="/projects/new" element={<NewProject />} />
       <Route path="/projects/:id" element={<ProjectDetail />} />
       <Route path="/docs" element={<Docs />} />

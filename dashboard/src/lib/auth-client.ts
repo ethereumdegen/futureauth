@@ -1,9 +1,47 @@
-import { createAuthClient } from "better-auth/react";
-import { emailOTPClient } from "better-auth/client/plugins";
+// FutureAuth dashboard auth — no more BetterAuth dependency
 
-export const authClient = createAuthClient({
-  baseURL: window.location.origin,
-  plugins: [emailOTPClient()],
-});
+const BASE = '/api/auth'
 
-export const { useSession, signOut } = authClient;
+export interface AuthUser {
+  id: string
+  email: string
+  name: string
+}
+
+interface SessionData {
+  user: AuthUser
+}
+
+export async function sendOtp(email: string): Promise<{ ok?: boolean; error?: string }> {
+  const res = await fetch(`${BASE}/send-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  })
+  return res.json()
+}
+
+export async function verifyOtp(email: string, code: string): Promise<{ user?: AuthUser; error?: string }> {
+  const res = await fetch(`${BASE}/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email, code }),
+  })
+  return res.json()
+}
+
+export async function getSession(): Promise<SessionData | null> {
+  try {
+    const res = await fetch(`${BASE}/session`, { credentials: 'include' })
+    if (!res.ok) return null
+    return res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function signOut(): Promise<void> {
+  await fetch(`${BASE}/sign-out`, { method: 'POST', credentials: 'include' })
+}

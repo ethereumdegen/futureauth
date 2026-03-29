@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 export default function Docs() {
   const [copied, setCopied] = useState('')
-  const vixauthUrl = window.location.origin
+  const futureauthUrl = window.location.origin
 
   function copy(text: string, label: string) {
     navigator.clipboard.writeText(text)
@@ -23,7 +23,7 @@ export default function Docs() {
             <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center">
               <Phone size={14} className="text-white" />
             </div>
-            <span className="text-lg font-bold text-gray-900">VixAuth</span>
+            <span className="text-lg font-bold text-gray-900">FutureAuth</span>
           </div>
           <span className="text-gray-300">/</span>
           <span className="text-sm text-gray-500 font-medium">Integration Guide</span>
@@ -32,22 +32,21 @@ export default function Docs() {
 
       <div className="max-w-3xl mx-auto px-6 py-10">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Integration Guide</h1>
-        <p className="text-gray-500 mb-10">Add passwordless OTP authentication to your app in minutes.</p>
+        <p className="text-gray-500 mb-10">Add passwordless OTP authentication to your Rust app with the FutureAuth SDK.</p>
 
         {/* Overview */}
         <Section id="overview" title="How it works">
           <p>
-            VixAuth provides <strong>hosted OTP authentication</strong> for your app. You create a project in the dashboard,
-            configure a proxy in your frontend, and use the BetterAuth client SDK to send and verify codes.
-            VixAuth handles OTP delivery (via SMS or email), user creation, and session management — all stored in <strong>your own Postgres database</strong>.
+            FutureAuth is an <strong>OTP delivery service</strong>. The <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">futureauth</code> Rust SDK
+            handles all auth logic locally — users, sessions, and verification codes are stored in <strong>your own Postgres database</strong>.
+            FutureAuth's server only delivers the OTP codes via Resend (email) or Twilio (SMS).
           </p>
           <ol className="list-decimal list-inside space-y-1 mt-3 text-gray-600">
-            <li>Create a project in the VixAuth dashboard</li>
-            <li>Provide your Postgres database URL (e.g. Neon, Supabase, Railway)</li>
-            <li>Choose an auth mode: <strong>Phone OTP</strong> (SMS) or <strong>Email OTP</strong></li>
-            <li>Add a proxy rule in your frontend to route auth requests to VixAuth</li>
-            <li>Use the BetterAuth client SDK to trigger sign-in flows</li>
-            <li>Query your own database for session validation on the backend</li>
+            <li>Create a project in the FutureAuth dashboard</li>
+            <li>Install the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">futureauth</code> SDK crate in your Rust project</li>
+            <li>Initialize the SDK with your secret key and database pool</li>
+            <li>Use <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">send_otp</code> and <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">verify_otp</code> for auth flows</li>
+            <li>Sessions are stored and validated locally in your database</li>
           </ol>
         </Section>
 
@@ -55,8 +54,8 @@ export default function Docs() {
         <Section id="prerequisites" title="Prerequisites">
           <ul className="list-disc list-inside space-y-1 text-gray-600">
             <li>A Postgres database (Neon, Supabase, Railway Postgres, etc.)</li>
-            <li>A React + Vite frontend (or any JS framework with proxy support)</li>
-            <li>An account on VixAuth — <a href="/sign-up" className="text-emerald-600 underline">sign up here</a></li>
+            <li>A Rust project using Axum (or any async framework)</li>
+            <li>An account on FutureAuth — <Link to="/sign-in" className="text-emerald-600 underline">sign in here</Link></li>
           </ul>
         </Section>
 
@@ -64,179 +63,73 @@ export default function Docs() {
         <Section id="create-project" title="1. Create a project">
           <p>
             Go to the <Link to="/" className="text-emerald-600 underline">dashboard</Link> and click <strong>New Project</strong>.
-            Provide a name, your database URL, and select an auth mode.
+            Choose a name and select an OTP mode (email or phone).
           </p>
           <p className="mt-2">
-            VixAuth will auto-create the necessary auth tables (<code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">user</code>,
-            <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">session</code>,
-            <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">account</code>,
-            <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">verification</code>)
-            in your database. You'll receive a <strong>publishable key</strong> and <strong>secret key</strong>.
+            You'll receive a <strong>publishable key</strong> and <strong>secret key</strong>.
+            The secret key is used by the SDK to authenticate with FutureAuth's OTP delivery API.
           </p>
           <Callout>
-            Keep your secret key safe. The publishable key is safe to expose in frontend code.
+            Save your secret key immediately — it's only shown once on creation.
           </Callout>
         </Section>
 
         {/* Step 2 */}
-        <Section id="install-sdk" title="2. Install the BetterAuth client SDK">
+        <Section id="install-sdk" title="2. Install the SDK">
           <CodeBlock
-            label="npm"
-            code="npm install better-auth"
+            label="Cargo.toml"
+            code={`[dependencies]
+futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk" }
+
+# With Axum integration (routes + extractor):
+# futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk", features = ["axum-integration"] }`}
             copied={copied}
             onCopy={copy}
           />
         </Section>
 
         {/* Step 3 */}
-        <Section id="auth-client" title="3. Create the auth client">
-          <p className="mb-3">
-            Create a file like <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">src/lib/auth-client.ts</code> in your project:
-          </p>
-          <Tabs
-            tabs={[
-              {
-                label: 'Email OTP',
-                content: (
-                  <CodeBlock
-                    label="src/lib/auth-client.ts"
-                    code={`import { createAuthClient } from "better-auth/react";
-import { emailOTPClient } from "better-auth/client/plugins";
+        <Section id="initialize" title="3. Initialize the SDK">
+          <CodeBlock
+            label="src/main.rs"
+            code={`use futureauth::{FutureAuth, FutureAuthConfig};
+use sqlx::PgPool;
 
-export const authClient = createAuthClient({
-  baseURL: window.location.origin, // proxied to VixAuth
-  plugins: [emailOTPClient()],
+let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
+
+let futureauth = FutureAuth::new(pool.clone(), FutureAuthConfig {
+    api_url: "${futureauthUrl}".to_string(),
+    secret_key: std::env::var("FUTUREAUTH_SECRET_KEY")?,
+    project_name: "My App".to_string(),
+    ..Default::default()
 });
 
-export const { useSession, signOut } = authClient;`}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                ),
-              },
-              {
-                label: 'Phone OTP',
-                content: (
-                  <CodeBlock
-                    label="src/lib/auth-client.ts"
-                    code={`import { createAuthClient } from "better-auth/react";
-import { phoneNumberClient } from "better-auth/client/plugins";
-
-export const authClient = createAuthClient({
-  baseURL: window.location.origin, // proxied to VixAuth
-  plugins: [phoneNumberClient()],
-});
-
-export const { useSession, signOut } = authClient;`}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                ),
-              },
-            ]}
-          />
-        </Section>
-
-        {/* Step 4 */}
-        <Section id="proxy" title="4. Configure the proxy">
-          <p className="mb-3">
-            Route <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/api/auth</code> requests from your frontend to VixAuth.
-            Replace <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">YOUR_PUBLISHABLE_KEY</code> with your project's publishable key.
-          </p>
-          <Tabs
-            tabs={[
-              {
-                label: 'Vite',
-                content: (
-                  <CodeBlock
-                    label="vite.config.ts"
-                    code={`export default defineConfig({
-  server: {
-    proxy: {
-      '/api/auth': {
-        target: '${vixauthUrl}',
-        changeOrigin: true,
-        rewrite: (path) =>
-          \`/auth/YOUR_PUBLISHABLE_KEY\${path}\`,
-      },
-    },
-  },
-});`}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                ),
-              },
-              {
-                label: 'Next.js',
-                content: (
-                  <CodeBlock
-                    label="next.config.js"
-                    code={`module.exports = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/auth/:path*',
-        destination:
-          '${vixauthUrl}/auth/YOUR_PUBLISHABLE_KEY/api/auth/:path*',
-      },
-    ];
-  },
-};`}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                ),
-              },
-              {
-                label: 'Nginx / Production',
-                content: (
-                  <CodeBlock
-                    label="nginx.conf"
-                    code={`location /api/auth/ {
-    proxy_pass ${vixauthUrl}/auth/YOUR_PUBLISHABLE_KEY/api/auth/;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-}`}
-                    copied={copied}
-                    onCopy={copy}
-                  />
-                ),
-              },
-            ]}
+// Create auth tables (user, session, verification)
+futureauth.ensure_tables().await?;`}
+            copied={copied}
+            onCopy={copy}
           />
           <Callout>
-            In production, use Nginx, Caddy, or your hosting platform's rewrite rules instead of the dev proxy.
-            Add your production domain to the project's <strong>Allowed Origins</strong> in the dashboard.
+            <code className="text-xs">ensure_tables()</code> is idempotent — safe to call on every startup.
+            It creates the <code className="text-xs">user</code>, <code className="text-xs">session</code>, and <code className="text-xs">verification</code> tables
+            if they don't exist. All columns use snake_case.
           </Callout>
         </Section>
 
-        {/* Step 5 */}
-        <Section id="sign-in" title="5. Implement sign-in">
+        {/* Step 4 */}
+        <Section id="send-otp" title="4. Send OTP">
           <Tabs
             tabs={[
               {
                 label: 'Email OTP',
                 content: (
                   <CodeBlock
-                    label="SignIn.tsx"
-                    code={`import { authClient } from "./lib/auth-client";
+                    label="Email OTP"
+                    code={`use futureauth::OtpChannel;
 
-// Step 1: Send the code
-const { error } = await authClient.emailOtp.sendVerificationOtp({
-  email: "user@example.com",
-  type: "sign-in", // use "sign-in" — auto-creates new users
-});
-
-// Step 2: Verify the code
-const { error: verifyError } = await authClient.emailOtp.verifyEmail({
-  email: "user@example.com",
-  otp: "123456",
-});
-
-// Step 3: Check the session
-const { data: session } = await authClient.useSession();
-console.log(session.user); // { id, email, ... }`}
+futureauth.send_otp(OtpChannel::Email, "user@example.com").await?;
+// SDK generates a code, stores it in your DB, then calls
+// FutureAuth API to deliver it via Resend`}
                     copied={copied}
                     onCopy={copy}
                   />
@@ -246,23 +139,12 @@ console.log(session.user); // { id, email, ... }`}
                 label: 'Phone OTP',
                 content: (
                   <CodeBlock
-                    label="SignIn.tsx"
-                    code={`import { authClient } from "./lib/auth-client";
+                    label="Phone OTP"
+                    code={`use futureauth::OtpChannel;
 
-// Step 1: Send the code
-const { error } = await authClient.phoneNumber.sendVerificationCode({
-  phoneNumber: "+15551234567",
-});
-
-// Step 2: Verify the code
-const { error: verifyError } = await authClient.phoneNumber.verifyPhoneNumber({
-  phoneNumber: "+15551234567",
-  code: "123456",
-});
-
-// Step 3: Check the session
-const { data: session } = await authClient.useSession();
-console.log(session.user); // { id, phoneNumber, ... }`}
+futureauth.send_otp(OtpChannel::Phone, "+15551234567").await?;
+// SDK generates a code, stores it in your DB, then calls
+// FutureAuth API to deliver it via Twilio SMS`}
                     copied={copied}
                     onCopy={copy}
                   />
@@ -272,105 +154,145 @@ console.log(session.user); // { id, phoneNumber, ... }`}
           />
         </Section>
 
+        {/* Step 5 */}
+        <Section id="verify-otp" title="5. Verify OTP">
+          <CodeBlock
+            label="Verify and create session"
+            code={`// Returns (User, Session) on success
+let (user, session) = futureauth.verify_otp(
+    "user@example.com",  // or phone number
+    "123456",            // the code they entered
+    Some("127.0.0.1"),   // optional: IP address
+    Some("Mozilla/5.0"), // optional: user agent
+).await?;
+
+// Set a cookie with the session token
+// Cookie name defaults to "futureauth_session"
+set_cookie("futureauth_session", &session.token);`}
+            copied={copied}
+            onCopy={copy}
+          />
+          <p className="text-sm text-gray-500 mt-2">
+            If the user doesn't exist, they're auto-created. The verification code is deleted after use.
+          </p>
+        </Section>
+
         {/* Step 6 */}
-        <Section id="session-check" title="6. Validate sessions on your backend">
+        <Section id="session-check" title="6. Validate sessions">
+          <CodeBlock
+            label="Session validation"
+            code={`// Extract token from cookie and validate
+let token = get_cookie("futureauth_session");
+match futureauth.get_session(&token).await? {
+    Some((user, session)) => {
+        // Authenticated! Use user.id, user.email, etc.
+    }
+    None => {
+        // Invalid or expired session
+    }
+}`}
+            copied={copied}
+            onCopy={copy}
+          />
+        </Section>
+
+        {/* Step 7 - Axum Integration */}
+        <Section id="axum" title="7. Axum integration (optional)">
           <p className="mb-3">
-            After sign-in, a session cookie is set on your domain. On your backend, extract the
-            <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">better-auth.session_token</code> cookie and
-            query <strong>your own database</strong>:
+            Enable the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">axum-integration</code> feature for pre-built routes and an auth extractor.
           </p>
           <CodeBlock
-            label="SQL"
-            code={`SELECT u.* FROM "session" s
-JOIN "user" u ON u.id = s.user_id
-WHERE s.token = $1
-  AND s.expires_at > NOW();`}
-            copied={copied}
-            onCopy={copy}
-          />
-          <CodeBlock
-            label="Express example"
-            code={`import pg from "pg";
-import cookieParser from "cookie-parser";
+            label="Axum routes + extractor"
+            code={`use futureauth::axum::{auth_router, AuthSession};
+use axum::{Router, routing::get, Json};
 
-app.use(cookieParser());
+let app = Router::new()
+    // Mounts: POST /api/auth/send-otp
+    //         POST /api/auth/verify-otp
+    //         GET  /api/auth/session
+    //         POST /api/auth/sign-out
+    .nest("/api/auth", auth_router())
+    // Use AuthSession extractor for protected routes
+    .route("/api/me", get(me_handler))
+    .with_state(futureauth);
 
-app.get("/api/me", async (req, res) => {
-  const token = req.cookies["better-auth.session_token"];
-  if (!token) return res.status(401).json({ error: "Not authenticated" });
-
-  const { rows } = await pool.query(
-    \`SELECT u.* FROM "session" s
-     JOIN "user" u ON u.id = s.user_id
-     WHERE s.token = $1 AND s.expires_at > NOW()\`,
-    [token.split(".")[0]] // token format: "id.secret"
-  );
-
-  if (!rows[0]) return res.status(401).json({ error: "Invalid session" });
-  res.json({ user: rows[0] });
-});`}
+// AuthSession extracts + validates the session from cookie
+async fn me_handler(auth: AuthSession) -> Json<serde_json::Value> {
+    serde_json::json!({
+        "id": auth.user.id,
+        "email": auth.user.email,
+    }).into()
+}`}
             copied={copied}
             onCopy={copy}
           />
         </Section>
 
-        {/* Step 7 */}
-        <Section id="sign-out" title="7. Sign out">
+        {/* Step 8 */}
+        <Section id="sign-out" title="8. Sign out">
           <CodeBlock
-            label="SignOut"
-            code={`import { signOut } from "./lib/auth-client";
+            label="Revoke session"
+            code={`// Revoke a single session
+futureauth.revoke_session(&token).await?;
 
-await signOut();`}
+// Or revoke all sessions for a user
+futureauth.revoke_all_sessions(&user.id).await?;`}
             copied={copied}
             onCopy={copy}
           />
         </Section>
 
-        {/* Allowed Origins */}
-        <Section id="allowed-origins" title="Allowed Origins (CORS)">
-          <p>
-            VixAuth enforces CORS on per-project auth endpoints. Add every domain that will make auth
-            requests to your project's <strong>Allowed Origins</strong> list in the dashboard.
-          </p>
-          <p className="mt-2">
-            Example: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">https://myapp.com</code>,
-            <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">http://localhost:5173</code>
-          </p>
+        {/* Config */}
+        <Section id="config" title="Configuration">
+          <CodeBlock
+            label="FutureAuthConfig options"
+            code={`FutureAuthConfig {
+    api_url: String,         // FutureAuth server URL
+    secret_key: String,      // Project secret key
+    project_name: String,    // Shown in OTP emails/SMS
+    session_ttl: Duration,   // Default: 30 days
+    otp_ttl: Duration,       // Default: 10 minutes
+    otp_length: usize,       // Default: 6 digits
+    cookie_name: String,     // Default: "futureauth_session"
+}`}
+            copied={copied}
+            onCopy={copy}
+          />
         </Section>
 
         {/* Database Schema */}
         <Section id="schema" title="Database schema">
           <p className="mb-3">
-            VixAuth creates these tables in your database when you create a project. They are fully managed — do not modify their structure.
+            The SDK creates these tables in your database via <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">ensure_tables()</code>.
+            All columns are snake_case.
           </p>
           <CodeBlock
             label="Tables created in your database"
-            code={`"user"         — id, name, email, phone_number, email_verified, phone_number_verified, image, created_at, updated_at
-session        — id, user_id, token, expires_at, ip_address, user_agent, created_at, updated_at
-account        — id, user_id, account_id, provider_id, access_token, ...
-verification   — id, identifier, value, expires_at, created_at, updated_at`}
+            code={`"user"         — id, email, phone, name, email_verified, phone_verified, image, created_at, updated_at
+session        — id, user_id, token, ip_address, user_agent, expires_at, created_at
+verification   — id, identifier, code, expires_at, created_at`}
             copied={copied}
             onCopy={copy}
           />
         </Section>
 
         {/* API Keys */}
-        <Section id="api-keys" title="Programmatic API access">
+        <Section id="api-keys" title="Dashboard API keys">
           <p className="mb-3">
-            You can manage projects programmatically using API keys. Create one in{' '}
+            You can also manage projects programmatically using dashboard API keys. Create one in{' '}
             <Link to="/settings" className="text-emerald-600 underline">Settings</Link>.
           </p>
           <CodeBlock
             label="cURL"
             code={`# List your projects
 curl -H "Authorization: Bearer vxk_YOUR_API_KEY" \\
-  ${vixauthUrl}/api/projects
+  ${futureauthUrl}/api/projects
 
 # Create a project
 curl -X POST -H "Authorization: Bearer vxk_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"name":"My App","database_url":"postgres://...","auth_mode":"email"}' \\
-  ${vixauthUrl}/api/projects`}
+  -d '{"name":"My App","otp_mode":"email"}' \\
+  ${futureauthUrl}/api/projects`}
             copied={copied}
             onCopy={copy}
           />
@@ -380,20 +302,20 @@ curl -X POST -H "Authorization: Bearer vxk_YOUR_API_KEY" \\
         <Section id="troubleshooting" title="Troubleshooting">
           <div className="space-y-4">
             <TroubleshootItem
-              q="I get 'Failed to send code'"
-              a="Check that your project's auth mode matches the client plugin (emailOTPClient vs phoneNumberClient). Also verify that VixAuth has valid Resend/Twilio credentials for your auth mode."
+              q="OtpDeliveryFailed error"
+              a="Check that your FutureAuth project has valid Resend (email) or Twilio (SMS) credentials configured on the server. Verify your secret key is correct."
             />
             <TroubleshootItem
-              q="CORS errors in the browser"
-              a="Add your frontend's origin (e.g. http://localhost:5173) to the project's Allowed Origins in the dashboard."
+              q="InvalidOtp or OtpExpired"
+              a="The code was wrong or expired (default: 10 minutes). Codes are single-use and deleted after verification."
             />
             <TroubleshootItem
-              q="Session cookie not being set"
-              a="Ensure your proxy is correctly rewriting /api/auth to VixAuth. The cookie's domain must match your frontend's domain."
+              q="Session not found"
+              a="The session token is invalid or expired. Sessions default to 30 days. Check that the cookie name matches your config."
             />
             <TroubleshootItem
-              q="'relation does not exist' errors"
-              a="The auth tables weren't created in your database. Delete and re-create the project, or manually run the setup SQL from the schema section above."
+              q="Database errors on startup"
+              a="Make sure ensure_tables() runs before any auth operations. Check your DATABASE_URL is correct and the database is accessible."
             />
           </div>
         </Section>

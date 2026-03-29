@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
-import { authClient } from '../lib/auth-client'
+import { useNavigate } from 'react-router'
+import { sendOtp, verifyOtp, type AuthUser } from '../lib/auth-client'
 import { Phone } from 'lucide-react'
 
-export default function SignIn() {
+export default function SignIn({ onAuth }: { onAuth: (user: AuthUser) => void }) {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -16,12 +16,9 @@ export default function SignIn() {
     setLoading(true)
     setError('')
     try {
-      const res = await authClient.emailOtp.sendVerificationOtp({
-        email,
-        type: 'sign-in',
-      })
+      const res = await sendOtp(email)
       if (res.error) {
-        setError(res.error.message || 'Failed to send code')
+        setError(res.error)
       } else {
         setStep('code')
       }
@@ -37,13 +34,11 @@ export default function SignIn() {
     setLoading(true)
     setError('')
     try {
-      const res = await authClient.signIn.emailOtp({
-        email,
-        otp: code,
-      })
+      const res = await verifyOtp(email, code)
       if (res.error) {
-        setError(res.error.message || 'Invalid code')
-      } else {
+        setError(res.error)
+      } else if (res.user) {
+        onAuth(res.user)
         navigate('/')
       }
     } catch {
@@ -60,7 +55,7 @@ export default function SignIn() {
           <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4">
             <Phone size={24} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Sign in to VixAuth</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Sign in to FutureAuth</h1>
           <p className="text-gray-500 text-sm mt-1">We'll email you a verification code</p>
         </div>
 
@@ -126,10 +121,6 @@ export default function SignIn() {
             </form>
           )}
         </div>
-
-        <p className="text-center text-gray-500 text-sm mt-6">
-          No account? <Link to="/sign-up" className="text-emerald-600 hover:text-emerald-700 font-medium">Sign up</Link>
-        </p>
       </div>
     </div>
   )

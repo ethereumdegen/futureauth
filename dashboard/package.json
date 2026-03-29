@@ -1,5 +1,5 @@
 {
-  "name": "vixauth-dashboard",
+  "name": "futureauth-dashboard",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "better-auth": "^1.2.0",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

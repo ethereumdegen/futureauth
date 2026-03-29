@@ -1,21 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router'
-import { getProject, getProjectUsers, getProjectSessions, type Project, type ProjectUser, type ProjectSession } from '../lib/api'
-import { ArrowLeft, Copy, Check, Users, Activity, Code, Phone, Mail } from 'lucide-react'
+import { getProject, deleteProject, updateProject, type Project } from '../lib/api'
+import { ArrowLeft, Copy, Check, Phone, Mail, Trash2, Code } from 'lucide-react'
+import { useNavigate } from 'react-router'
 
 export default function ProjectDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [project, setProject] = useState<Project | null>(null)
-  const [users, setUsers] = useState<ProjectUser[]>([])
-  const [sessions, setSessions] = useState<ProjectSession[]>([])
-  const [tab, setTab] = useState<'setup' | 'users' | 'sessions'>('setup')
   const [copied, setCopied] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!id) return
     getProject(id).then(setProject)
-    getProjectUsers(id).then(setUsers).catch(() => {})
-    getProjectSessions(id).then(setSessions).catch(() => {})
   }, [id])
 
   function copy(text: string, label: string) {
@@ -24,55 +22,91 @@ export default function ProjectDetail() {
     setTimeout(() => setCopied(''), 2000)
   }
 
+  async function handleDelete() {
+    if (!id || !confirm('Delete this project? This cannot be undone.')) return
+    setDeleting(true)
+    try {
+      await deleteProject(id)
+      navigate('/')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (!project) {
     return <div className="min-h-screen bg-white flex items-center justify-center text-gray-400">Loading...</div>
   }
 
-  const isPhone = project.auth_mode === 'phone'
-  const vixauthUrl = window.location.origin.replace(':5180', ':3002')
+  const isPhone = project.otp_mode === 'phone'
+  const futureauthUrl = window.location.origin
 
-  const authClientCode = isPhone
-    ? `import { createAuthClient } from "better-auth/react";
-import { phoneNumberClient } from "better-auth/client/plugins";
+  const cargoToml = `[dependencies]
+futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk" }
+# Enable Axum integration for auth routes + extractor
+# futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk", features = ["axum-integration"] }`
 
-export const authClient = createAuthClient({
-  baseURL: window.location.origin, // proxied to VixAuth
-  plugins: [phoneNumberClient()],
+  const rustSetup = `use futureauth::{FutureAuth, FutureAuthConfig, OtpChannel};
+use sqlx::PgPool;
+
+let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
+
+let futureauth = FutureAuth::new(pool.clone(), FutureAuthConfig {
+    api_url: "${futureauthUrl}".to_string(),
+    secret_key: "${project.secret_key || "sk_your_secret_key"}".to_string(),
+    project_name: "${project.name}".to_string(),
+    ..Default::default()
 });
 
-export const { useSession, signOut } = authClient;`
-    : `import { createAuthClient } from "better-auth/react";
-import { emailOTPClient } from "better-auth/client/plugins";
+// Create auth tables in your database
+futureauth.ensure_tables().await?;`
 
-export const authClient = createAuthClient({
-  baseURL: window.location.origin, // proxied to VixAuth
-  plugins: [emailOTPClient()],
-});
+  const sendOtpCode = isPhone
+    ? `// Send OTP via SMS
+futureauth.send_otp(
+    OtpChannel::Phone,
+    "+15551234567",
+).await?;`
+    : `// Send OTP via email
+futureauth.send_otp(
+    OtpChannel::Email,
+    "user@example.com",
+).await?;`
 
-export const { useSession, signOut } = authClient;`
+  const verifyCode = isPhone
+    ? `// Verify OTP — returns (User, Session)
+let (user, session) = futureauth.verify_otp(
+    "+15551234567",
+    "123456",
+    Some(ip_address),
+    Some(user_agent),
+).await?;
+// Set cookie: session.token`
+    : `// Verify OTP — returns (User, Session)
+let (user, session) = futureauth.verify_otp(
+    "user@example.com",
+    "123456",
+    Some(ip_address),
+    Some(user_agent),
+).await?;
+// Set cookie: session.token`
 
-  const signInCode = isPhone
-    ? `// Step 1: Send OTP
-await authClient.phoneNumber.sendVerificationCode({
-  phoneNumber: "+15551234567",
-});
+  const sessionCheck = `// Validate session from cookie
+let token = extract_cookie("futureauth_session");
+if let Some((user, session)) = futureauth.get_session(&token).await? {
+    // user is authenticated
+}`
 
-// Step 2: Verify code
-await authClient.phoneNumber.verifyPhoneNumber({
-  phoneNumber: "+15551234567",
-  code: "123456",
-});`
-    : `// Step 1: Send OTP
-await authClient.emailOtp.sendVerificationOtp({
-  email: "user@example.com",
-  type: "sign-in",
-});
+  const axumRoutes = `use futureauth::axum::{auth_router, AuthSession};
 
-// Step 2: Verify code
-await authClient.emailOtp.verifyEmail({
-  email: "user@example.com",
-  otp: "123456",
-});`
+// Mount auth routes: /api/auth/send-otp, verify-otp, session, sign-out
+let app = Router::new()
+    .nest("/api/auth", auth_router())
+    .route("/api/me", get(me_handler))
+    .with_state(futureauth);
+
+async fn me_handler(auth: AuthSession) -> Json<User> {
+    Json(auth.user)
+}`
 
   return (
     <div className="min-h-screen bg-white">
@@ -85,155 +119,93 @@ await authClient.emailOtp.verifyEmail({
       </nav>
 
       <div className="max-w-4xl mx-auto px-6 py-10">
-        <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-          <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-            isPhone ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
-          }`}>
-            {isPhone ? <Phone size={10} /> : <Mail size={10} />}
-            {isPhone ? 'Phone OTP' : 'Email OTP'}
-          </span>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+              isPhone ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+            }`}>
+              {isPhone ? <Phone size={10} /> : <Mail size={10} />}
+              {isPhone ? 'Phone OTP' : 'Email OTP'}
+            </span>
+          </div>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 text-gray-400 hover:text-red-600 text-sm transition-colors"
+          >
+            <Trash2 size={14} /> {deleting ? 'Deleting...' : 'Delete'}
+          </button>
         </div>
         <p className="text-gray-400 text-sm font-mono mb-8">{project.publishable_key}</p>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border border-gray-200 rounded-lg p-1 mb-8 w-fit">
-          {([['setup', 'Setup', Code], ['users', 'Users', Users], ['sessions', 'Sessions', Activity]] as const).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                tab === key ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <Icon size={14} /> {label}
-            </button>
-          ))}
+        <div className="space-y-8">
+          {/* API Keys */}
+          <section>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Project Keys</h2>
+            <div className="space-y-2">
+              <KeyRow label="Publishable Key" value={project.publishable_key} copied={copied} onCopy={copy} />
+              {project.secret_key && (
+                <KeyRow label="Secret Key" value={project.secret_key} copied={copied} onCopy={copy} secret />
+              )}
+              {!project.secret_key && (
+                <div className="text-xs text-gray-400 mt-1">
+                  Secret key was shown on creation only. Recreate the project if you lost it.
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* SDK Setup */}
+          <section>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">
+              <Code size={14} className="inline mr-1" />
+              SDK Integration (Rust)
+            </h2>
+            <CodeBlock file="Cargo.toml" code={cargoToml} />
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Initialize</h2>
+            <CodeBlock file="src/main.rs" code={rustSetup} />
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Send OTP</h2>
+            <CodeBlock file={isPhone ? 'Phone OTP' : 'Email OTP'} code={sendOtpCode} />
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Verify OTP</h2>
+            <CodeBlock file="Verify & create session" code={verifyCode} />
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Session Check</h2>
+            <CodeBlock file="Validate authenticated requests" code={sessionCheck} />
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Axum Routes (optional)</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Enable the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">axum-integration</code> feature for pre-built auth routes and extractors.
+            </p>
+            <CodeBlock file="With axum-integration feature" code={axumRoutes} />
+          </section>
+
+          {/* Architecture note */}
+          <section className="border-t border-gray-200 pt-8">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">How it works</h2>
+            <div className="text-sm text-gray-600 space-y-2">
+              <p>FutureAuth is an <strong>OTP delivery service</strong>. When you call <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">send_otp</code>, the SDK:</p>
+              <ol className="list-decimal list-inside space-y-1 ml-2">
+                <li>Generates a random code and stores it in <strong>your</strong> database (verification table)</li>
+                <li>Sends the code to FutureAuth's API for delivery via {isPhone ? 'Twilio SMS' : 'Resend email'}</li>
+              </ol>
+              <p className="mt-3">On <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">verify_otp</code>, the SDK checks the code against your local verification table, creates/finds the user, and creates a session — all in <strong>your</strong> database. FutureAuth never sees your database.</p>
+            </div>
+          </section>
         </div>
-
-        {/* Setup Tab */}
-        {tab === 'setup' && (
-          <div className="space-y-8">
-            <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">API Keys</h2>
-              <div className="space-y-2">
-                <KeyRow label="Publishable Key" value={project.publishable_key} copied={copied} onCopy={copy} />
-                {project.secret_key && (
-                  <KeyRow label="Secret Key" value={project.secret_key} copied={copied} onCopy={copy} secret />
-                )}
-              </div>
-            </section>
-
-            <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Frontend Auth Client</h2>
-              <CodeBlock file="src/lib/auth-client.ts" code={authClientCode} />
-            </section>
-
-            <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Vite Proxy</h2>
-              <CodeBlock file="vite.config.ts" code={`server: {
-  proxy: {
-    '/api/auth': {
-      target: '${vixauthUrl}',
-      rewrite: (path) => \`/auth/${project.publishable_key}\${path}\`,
-    },
-  },
-}`} />
-            </section>
-
-            <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Sign-In Flow</h2>
-              <CodeBlock file={`${isPhone ? 'Phone' : 'Email'} OTP`} code={signInCode} />
-            </section>
-
-            <section>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Backend Session Check</h2>
-              <CodeBlock file="SQL — reads from YOUR database" code={`SELECT u.* FROM session s
-JOIN "user" u ON u.id = s.user_id
-WHERE s.token = $1 AND s.expires_at > NOW();`} />
-            </section>
-          </div>
-        )}
-
-        {/* Users Tab */}
-        {tab === 'users' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Users ({users.length})</h2>
-            </div>
-            {users.length === 0 ? (
-              <div className="text-center py-16 border border-gray-200 rounded-xl">
-                <Users size={32} className="text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">No users yet. They'll appear after the first sign-in.</p>
-              </div>
-            ) : (
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 text-gray-500 text-left">
-                      <th className="px-4 py-3 font-medium">{isPhone ? 'Phone' : 'Email'}</th>
-                      <th className="px-4 py-3 font-medium">Name</th>
-                      <th className="px-4 py-3 font-medium">Verified</th>
-                      <th className="px-4 py-3 font-medium">Joined</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr key={u.id} className="border-b border-gray-100 last:border-0">
-                        <td className="px-4 py-3 font-mono text-gray-700">{(isPhone ? u.phone_number : u.email) || '-'}</td>
-                        <td className="px-4 py-3 text-gray-700">{u.name || '-'}</td>
-                        <td className="px-4 py-3">
-                          {(isPhone ? u.phone_number_verified : u.email_verified)
-                            ? <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-xs font-medium"><Check size={10} /> Yes</span>
-                            : <span className="text-gray-400 text-xs">No</span>}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Sessions Tab */}
-        {tab === 'sessions' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Active Sessions ({sessions.length})</h2>
-            </div>
-            {sessions.length === 0 ? (
-              <div className="text-center py-16 border border-gray-200 rounded-xl">
-                <Activity size={32} className="text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">No active sessions.</p>
-              </div>
-            ) : (
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 text-gray-500 text-left">
-                      <th className="px-4 py-3 font-medium">User</th>
-                      <th className="px-4 py-3 font-medium">IP</th>
-                      <th className="px-4 py-3 font-medium">Created</th>
-                      <th className="px-4 py-3 font-medium">Expires</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sessions.map((s) => (
-                      <tr key={s.id} className="border-b border-gray-100 last:border-0">
-                        <td className="px-4 py-3 font-mono text-gray-700">{s.phone_number || s.email || s.name || s.user_id.slice(0, 12)}</td>
-                        <td className="px-4 py-3 text-gray-500">{s.ip_address || '-'}</td>
-                        <td className="px-4 py-3 text-gray-500">{new Date(s.created_at).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-gray-500">{new Date(s.expires_at).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )
@@ -241,7 +213,7 @@ WHERE s.token = $1 AND s.expires_at > NOW();`} />
 
 function CodeBlock({ file, code }: { file: string; code: string }) {
   return (
-    <div className="bg-gray-950 rounded-xl overflow-hidden">
+    <div className="bg-gray-950 rounded-xl overflow-hidden mb-4">
       <div className="px-4 py-2 border-b border-gray-800 text-xs text-gray-500">{file}</div>
       <pre className="p-4 text-sm text-gray-300 overflow-x-auto">{code}</pre>
     </div>

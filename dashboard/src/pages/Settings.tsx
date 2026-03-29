@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { signOut, useSession } from '../lib/auth-client'
+import { signOut } from '../lib/auth-client'
 import { listApiKeys, createApiKey, deleteApiKey, type ApiKey } from '../lib/api'
 import { ArrowLeft, Plus, Trash2, Copy, Check, Key, LogOut, Phone } from 'lucide-react'
 
 export default function Settings() {
-  const { data: session } = useSession()
   const navigate = useNavigate()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,10 +52,9 @@ export default function Settings() {
             <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center">
               <Phone size={14} className="text-white" />
             </div>
-            <span className="text-lg font-bold text-gray-900">VixAuth</span>
+            <span className="text-lg font-bold text-gray-900">FutureAuth</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">{session?.user?.email}</span>
             <button
               onClick={() => signOut().then(() => navigate('/sign-in'))}
               className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"

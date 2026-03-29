@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { signOut, useSession } from '../lib/auth-client'
+import { signOut, type AuthUser } from '../lib/auth-client'
 import { listProjects, type Project } from '../lib/api'
 import { Phone, Plus, LogOut, ChevronRight, Mail, Key, BookOpen } from 'lucide-react'
 
-export default function Dashboard() {
-  const { data: session } = useSession()
+export default function Dashboard({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -22,10 +21,10 @@ export default function Dashboard() {
             <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center">
               <Phone size={14} className="text-white" />
             </div>
-            <span className="text-lg font-bold text-gray-900">VixAuth</span>
+            <span className="text-lg font-bold text-gray-900">FutureAuth</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">{session?.user?.email}</span>
+            <span className="text-sm text-gray-500">{user.email}</span>
             <Link
               to="/docs"
               className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
@@ -41,7 +40,7 @@ export default function Dashboard() {
               <Key size={16} />
             </Link>
             <button
-              onClick={() => signOut().then(() => navigate('/sign-in'))}
+              onClick={() => signOut().then(() => { onSignOut(); navigate('/sign-in'); })}
               className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <LogOut size={16} />
@@ -87,9 +86,9 @@ export default function Dashboard() {
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                    p.auth_mode === 'email' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
+                    p.otp_mode === 'email' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
                   }`}>
-                    {p.auth_mode === 'email' ? <Mail size={16} /> : <Phone size={16} />}
+                    {p.otp_mode === 'email' ? <Mail size={16} /> : <Phone size={16} />}
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">{p.name}</h3>

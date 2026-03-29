@@ -1,220 +1,166 @@
-# VixAuth Integration — AI Agent Reference
+# FutureAuth Integration — AI Agent Reference
 
-VixAuth is a hosted OTP authentication service. It manages user sign-up, sign-in, and sessions using one-time passwords delivered via SMS (Twilio) or email (Resend). Auth data is stored in the **project owner's own Postgres database**.
+FutureAuth is an **OTP delivery service**. The `futureauth` Rust SDK crate handles all auth logic locally — users, sessions, and verification codes live in **your own Postgres database**. FutureAuth's server only delivers OTP codes via Resend (email) or Twilio (SMS).
 
-## Key Concepts
+## Architecture
 
-- **VixAuth URL**: `https://auth.vixautomation.com` (production)
-- **Auth proxy pattern**: Your frontend proxies `/api/auth/*` to `https://auth.vixautomation.com/auth/{publishable_key}/api/auth/*`
-- **Client SDK**: Uses [BetterAuth](https://better-auth.com) client — `better-auth/react`
-- **Auth modes**: `email` (Email OTP via Resend) or `phone` (Phone OTP via Twilio)
-- **Session storage**: Sessions live in the project owner's Postgres database, not on VixAuth's servers
+- **FutureAuth Server**: Receives OTP delivery requests from the SDK, sends codes via Resend/Twilio. Dashboard for managing projects.
+- **FutureAuth SDK** (`futureauth` crate): Installed in your Rust app. Manages users, sessions, verification codes in your local Postgres DB. Calls FutureAuth API only to deliver codes.
+- **OTP modes**: `email` (via Resend) or `phone` (via Twilio SMS)
+- **FutureAuth never sees your database** — all auth data stays local.
 
-## Quick Integration Steps
+## Quick Integration (Rust/Axum)
 
-### 1. Install SDK
+### 1. Add dependency
 
-```bash
-npm install better-auth
+```toml
+# Cargo.toml
+[dependencies]
+futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk" }
+
+# With Axum routes + extractor:
+# futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk", features = ["axum-integration"] }
 ```
 
-### 2. Create auth client
+### 2. Initialize
 
-**Email OTP:**
-```typescript
-// src/lib/auth-client.ts
-import { createAuthClient } from "better-auth/react";
-import { emailOTPClient } from "better-auth/client/plugins";
+```rust
+use futureauth::{FutureAuth, FutureAuthConfig};
+use sqlx::PgPool;
 
-export const authClient = createAuthClient({
-  baseURL: window.location.origin,
-  plugins: [emailOTPClient()],
+let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
+
+let futureauth = FutureAuth::new(pool.clone(), FutureAuthConfig {
+    api_url: "https://future-auth.com".to_string(),
+    secret_key: std::env::var("FUTUREAUTH_SECRET_KEY")?,
+    project_name: "My App".to_string(),
+    ..Default::default()
 });
-export const { useSession, signOut } = authClient;
+
+// Create auth tables (idempotent)
+futureauth.ensure_tables().await?;
 ```
 
-**Phone OTP:**
-```typescript
-// src/lib/auth-client.ts
-import { createAuthClient } from "better-auth/react";
-import { phoneNumberClient } from "better-auth/client/plugins";
+### 3. Send OTP
 
-export const authClient = createAuthClient({
-  baseURL: window.location.origin,
-  plugins: [phoneNumberClient()],
-});
-export const { useSession, signOut } = authClient;
+```rust
+use futureauth::OtpChannel;
+
+// Email OTP
+futureauth.send_otp(OtpChannel::Email, "user@example.com").await?;
+
+// Phone OTP
+futureauth.send_otp(OtpChannel::Phone, "+15551234567").await?;
 ```
 
-### 3. Configure proxy (Vite example)
+The SDK generates a random code, stores it in your `verification` table, then calls the FutureAuth API to deliver it.
 
-```typescript
-// vite.config.ts
-export default defineConfig({
-  server: {
-    proxy: {
-      '/api/auth': {
-        target: 'https://auth.vixautomation.com',
-        changeOrigin: true,
-        rewrite: (path) => `/auth/PUBLISHABLE_KEY${path}`,
-      },
-    },
-  },
-});
+### 4. Verify OTP
+
+```rust
+let (user, session) = futureauth.verify_otp(
+    "user@example.com",  // or phone number
+    "123456",            // code entered by user
+    Some("127.0.0.1"),   // optional IP
+    Some("Mozilla/5.0"), // optional user agent
+).await?;
+
+// Set cookie with session.token
+// Cookie name: "futureauth_session" (configurable)
 ```
 
-**Next.js rewrites:**
-```javascript
-// next.config.js
-module.exports = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/auth/:path*',
-        destination: 'https://auth.vixautomation.com/auth/PUBLISHABLE_KEY/api/auth/:path*',
-      },
-    ];
-  },
-};
-```
+Auto-creates user if they don't exist. Deletes used verification code.
 
-**Nginx (production):**
-```nginx
-location /api/auth/ {
-    proxy_pass https://auth.vixautomation.com/auth/PUBLISHABLE_KEY/api/auth/;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
+### 5. Validate sessions
+
+```rust
+let token = get_cookie("futureauth_session");
+match futureauth.get_session(&token).await? {
+    Some((user, session)) => { /* authenticated */ }
+    None => { /* invalid/expired */ }
 }
 ```
 
-### 4. Sign-in flow
+### 6. Axum integration (optional feature)
 
-**Email OTP:**
-```typescript
-// Send code
-await authClient.emailOtp.sendVerificationOtp({
-  email: "user@example.com",
-  type: "sign-in",
-});
+```rust
+use futureauth::axum::{auth_router, AuthSession};
 
-// Verify code
-await authClient.emailOtp.verifyEmail({
-  email: "user@example.com",
-  otp: "123456",
-});
-```
+let app = Router::new()
+    // Mounts: POST /api/auth/send-otp, POST /api/auth/verify-otp,
+    //         GET /api/auth/session, POST /api/auth/sign-out
+    .nest("/api/auth", auth_router())
+    .route("/api/me", get(me_handler))
+    .with_state(futureauth);
 
-**Phone OTP:**
-```typescript
-// Send code
-await authClient.phoneNumber.sendVerificationCode({
-  phoneNumber: "+15551234567",
-});
-
-// Verify code
-await authClient.phoneNumber.verifyPhoneNumber({
-  phoneNumber: "+15551234567",
-  code: "123456",
-});
-```
-
-### 5. Check session (React)
-
-```typescript
-import { useSession } from "./lib/auth-client";
-
-function Profile() {
-  const { data: session, isPending } = useSession();
-  if (isPending) return <div>Loading...</div>;
-  if (!session) return <div>Not signed in</div>;
-  return <div>Hello {session.user.email || session.user.phoneNumber}</div>;
+// AuthSession extractor validates cookie automatically
+async fn me_handler(auth: AuthSession) -> Json<serde_json::Value> {
+    serde_json::json!({ "id": auth.user.id, "email": auth.user.email }).into()
 }
 ```
 
-### 6. Sign out
+### 7. Sign out
 
-```typescript
-import { signOut } from "./lib/auth-client";
-await signOut();
+```rust
+futureauth.revoke_session(&token).await?;
+// or revoke all: futureauth.revoke_all_sessions(&user_id).await?;
 ```
 
-### 7. Backend session validation
+## Configuration
 
-Query the project's own Postgres database. The session token is in the `better-auth.session_token` cookie.
-
-```sql
-SELECT u.* FROM "session" s
-JOIN "user" u ON u.id = s.user_id
-WHERE s.token = $1
-  AND s.expires_at > NOW();
+```rust
+FutureAuthConfig {
+    api_url: String,         // FutureAuth server URL
+    secret_key: String,      // Project secret key (from dashboard)
+    project_name: String,    // Shown in OTP emails/SMS
+    session_ttl: Duration,   // Default: 30 days
+    otp_ttl: Duration,       // Default: 10 minutes
+    otp_length: usize,       // Default: 6 digits
+    cookie_name: String,     // Default: "futureauth_session"
+}
 ```
 
-**Express example:**
-```javascript
-app.get("/api/me", async (req, res) => {
-  const token = req.cookies["better-auth.session_token"];
-  if (!token) return res.status(401).json({ error: "Not authenticated" });
+## Database Schema (created by SDK in YOUR database)
 
-  const { rows } = await pool.query(
-    `SELECT u.* FROM "session" s
-     JOIN "user" u ON u.id = s.user_id
-     WHERE s.token = $1 AND s.expires_at > NOW()`,
-    [token.split(".")[0]]
-  );
-
-  if (!rows[0]) return res.status(401).json({ error: "Invalid session" });
-  res.json({ user: rows[0] });
-});
-```
-
-## Database Schema (created automatically by VixAuth)
-
-These tables are created in the **project owner's** database:
+All columns are **snake_case**.
 
 | Table | Key columns |
 |---|---|
-| `user` | id, name, email, phoneNumber, emailVerified, phoneNumberVerified, createdAt |
-| `session` | id, userId, token, expiresAt, ipAddress, userAgent, createdAt |
-| `account` | id, userId, accountId, providerId |
-| `verification` | id, identifier, value, expiresAt |
+| `"user"` | id, email, phone, name, email_verified, phone_verified, image, created_at, updated_at |
+| `session` | id, user_id, token, ip_address, user_agent, expires_at, created_at |
+| `verification` | id, identifier, code, expires_at, created_at |
 
-## VixAuth Management API
+## Environment Variables
 
-Project owners can manage their VixAuth projects programmatically using API keys (created in the dashboard under Settings).
+| Var | Description |
+|---|---|
+| `DATABASE_URL` | Your Postgres connection string |
+| `FUTUREAUTH_SECRET_KEY` | Project secret key from FutureAuth dashboard |
+
+## FutureAuth Dashboard API
+
+Manage projects programmatically with API keys (created in dashboard Settings).
 
 ```bash
-# Auth header
 Authorization: Bearer vxk_YOUR_API_KEY
 
-# Endpoints
 GET    /api/projects          # List projects
-POST   /api/projects          # Create project
+POST   /api/projects          # Create project { name, otp_mode }
 GET    /api/projects/:id      # Get project
 PUT    /api/projects/:id      # Update project
 DELETE /api/projects/:id      # Delete project
-GET    /api/projects/:id/users    # List end-users
-GET    /api/projects/:id/sessions # List active sessions
 
 GET    /api/keys              # List API keys
-POST   /api/keys              # Create API key
+POST   /api/keys              # Create API key { name }
 DELETE /api/keys/:id          # Delete API key
 ```
 
-**Create project payload:**
-```json
-{
-  "name": "My App",
-  "database_url": "postgres://user:pass@host/db",
-  "auth_mode": "email",
-  "allowed_origins": ["https://myapp.com", "http://localhost:5173"]
-}
-```
+## Common Errors
 
-## Common Issues
-
-| Problem | Fix |
+| Error | Fix |
 |---|---|
-| "Failed to send code" | Check auth mode matches client plugin. Verify Resend/Twilio creds are configured. |
-| CORS errors | Add your frontend origin to project's Allowed Origins in dashboard. |
-| Session cookie not set | Verify proxy is correctly rewriting `/api/auth` to VixAuth. |
-| "relation does not exist" | Auth tables weren't created — re-create the project or check database connectivity. |
+| `OtpDeliveryFailed` | Check FutureAuth project has valid Resend/Twilio creds. Verify secret key. |
+| `InvalidOtp` | Wrong code or already used. Codes are single-use. |
+| `OtpExpired` | Code expired (default 10 min). Resend a new one. |
+| `SessionNotFound` | Token invalid or expired. Default TTL is 30 days. |
+| Database errors on startup | Ensure `ensure_tables()` runs before auth operations. Check DATABASE_URL. |
