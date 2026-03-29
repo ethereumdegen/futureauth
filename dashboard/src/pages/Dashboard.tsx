@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { signOut, useSession } from '../lib/auth-client'
 import { listProjects, type Project } from '../lib/api'
-import { Phone, Plus, LogOut, ChevronRight, Mail, Key } from 'lucide-react'
+import { Phone, Plus, LogOut, ChevronRight, Mail, Key, BookOpen } from 'lucide-react'
 
 export default function Dashboard() {
   const { data: session } = useSession()
@@ -26,6 +26,13 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">{session?.user?.email}</span>
+            <Link
+              to="/docs"
+              className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              title="Docs"
+            >
+              <BookOpen size={16} />
+            </Link>
             <Link
               to="/settings"
               className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
