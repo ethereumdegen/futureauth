@@ -141,7 +141,7 @@ async fn serve_dashboard(
 
     // Try to serve static file
     if path.contains('.') {
-        let file_path = format!("./dashboard/dist{path}");
+        let file_path = format!("./frontend/dist{path}");
         if let Ok(content) = tokio::fs::read(&file_path).await {
             let ext = path.rsplit('.').next().unwrap_or("");
             let content_type = match ext {
@@ -163,7 +163,7 @@ async fn serve_dashboard(
     }
 
     // SPA fallback
-    match tokio::fs::read("./dashboard/dist/index.html").await {
+    match tokio::fs::read("./frontend/dist/index.html").await {
         Ok(html) => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, "text/html")],

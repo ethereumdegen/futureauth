@@ -1,7 +1,15 @@
 [package]
 name = "futureauth-server"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+
+[[bin]]
+name = "futureauth-server"
+path = "src/main.rs"
+
+[[bin]]
+name = "migrate"
+path = "src/bin/migrate.rs"
 
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }

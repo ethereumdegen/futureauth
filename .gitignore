@@ -7,8 +7,8 @@ node_modules/
 .env.*.local
 
 # Build output
-dashboard/dist/
-server/target/
+frontend/dist/
+backend/target/
 
 # TypeScript build info
 *.tsbuildinfo
