@@ -18,7 +18,7 @@ export default function SignIn() {
     try {
       const res = await authClient.emailOtp.sendVerificationOtp({
         email,
-        type: 'sign-in',
+        type: 'sign-up',
       })
       if (res.error) {
         setError(res.error.message || 'Failed to send code')
