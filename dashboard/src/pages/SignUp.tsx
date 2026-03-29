@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { authClient } from '../lib/auth-client'
+import { sendOtp, verifyOtp } from '../lib/auth-client'
 import { Phone } from 'lucide-react'
 
 export default function SignUp() {
@@ -16,12 +16,9 @@ export default function SignUp() {
     setLoading(true)
     setError('')
     try {
-      const res = await authClient.emailOtp.sendVerificationOtp({
-        email,
-        type: 'sign-in', // emailOTP plugin handles sign-up automatically
-      })
+      const res = await sendOtp(email)
       if (res.error) {
-        setError(res.error.message || 'Failed to send code')
+        setError(res.error)
       } else {
         setStep('code')
       }
@@ -37,12 +34,9 @@ export default function SignUp() {
     setLoading(true)
     setError('')
     try {
-      const res = await authClient.signIn.emailOtp({
-        email,
-        otp: code,
-      })
+      const res = await verifyOtp(email, code)
       if (res.error) {
-        setError(res.error.message || 'Invalid code')
+        setError(res.error)
       } else {
         navigate('/')
       }
