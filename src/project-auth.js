@@ -1,8 +1,16 @@
 import { betterAuth } from "better-auth";
-import { phoneNumber } from "better-auth/plugins";
+import { phoneNumber, emailOTP } from "better-auth/plugins";
 import pg from "pg";
 import { sendSMS } from "./sms.js";
+import { sendOTPEmail } from "./email.js";
 import { queryOne } from "./db.js";
+
+// Global credentials from env
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const resendApiKey = process.env.RESEND_API_KEY;
+const resendFromEmail = process.env.RESEND_FROM_EMAIL || "noreply@auth.vixautomation.com";
 
 // Cache BetterAuth instances per project to avoid re-creating on every request
 const authCache = new Map();
@@ -12,6 +20,45 @@ export async function getProjectByKey(publishableKey) {
     "SELECT * FROM project WHERE publishable_key = $1",
     [publishableKey]
   );
+}
+
+function buildPhonePlugin(project) {
+  return phoneNumber({
+    sendOTP: async ({ phoneNumber: phone, code }) => {
+      console.log(`[${project.name}] SMS OTP ${code} → ${phone}`);
+      if (twilioAccountSid && twilioAuthToken && twilioPhoneNumber) {
+        await sendSMS({
+          accountSid: twilioAccountSid,
+          authToken: twilioAuthToken,
+          from: twilioPhoneNumber,
+          to: phone,
+          body: `Your ${project.name} code is: ${code}`,
+        });
+      } else {
+        console.log(`[${project.name}] Twilio not configured — OTP logged only`);
+      }
+    },
+    signUpOnVerification: true,
+  });
+}
+
+function buildEmailPlugin(project) {
+  return emailOTP({
+    async sendVerificationOTP({ email, otp }) {
+      console.log(`[${project.name}] Email OTP ${otp} → ${email}`);
+      if (resendApiKey) {
+        await sendOTPEmail({
+          apiKey: resendApiKey,
+          from: resendFromEmail,
+          to: email,
+          code: otp,
+          projectName: project.name,
+        });
+      } else {
+        console.log(`[${project.name}] Resend not configured — OTP logged only`);
+      }
+    },
+  });
 }
 
 export function getProjectAuth(project) {
@@ -24,29 +71,14 @@ export function getProjectAuth(project) {
     max: 3,
   });
 
+  const mode = project.auth_mode || "phone";
+  const plugin = mode === "email" ? buildEmailPlugin(project) : buildPhonePlugin(project);
+
   const auth = betterAuth({
     secret: project.secret_key,
     database: projectPool,
     trustedOrigins: project.allowed_origins || [],
-    plugins: [
-      phoneNumber({
-        sendOTP: async ({ phoneNumber: phone, code }) => {
-          console.log(`[${project.name}] OTP ${code} → ${phone}`);
-          if (project.twilio_account_sid && project.twilio_auth_token && project.twilio_phone_number) {
-            await sendSMS({
-              accountSid: project.twilio_account_sid,
-              authToken: project.twilio_auth_token,
-              from: project.twilio_phone_number,
-              to: phone,
-              body: `Your ${project.name} code is: ${code}`,
-            });
-          } else {
-            console.log(`[${project.name}] Twilio not configured — OTP logged only`);
-          }
-        },
-        signUpOnVerification: true,
-      }),
-    ],
+    plugins: [plugin],
   });
 
   authCache.set(project.id, auth);

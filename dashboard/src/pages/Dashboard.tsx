@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { signOut, useSession } from '../lib/auth-client'
 import { listProjects, type Project } from '../lib/api'
-import { Phone, Plus, LogOut, ChevronRight } from 'lucide-react'
+import { Phone, Plus, LogOut, ChevronRight, Mail, Key } from 'lucide-react'
 
 export default function Dashboard() {
   const { data: session } = useSession()
@@ -15,20 +15,27 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <nav className="border-b border-gray-800/50">
+    <div className="min-h-screen bg-white">
+      <nav className="border-b border-gray-200 sticky top-0 bg-white/80 backdrop-blur-xl z-10">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center">
-              <Phone size={16} />
+            <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center">
+              <Phone size={14} className="text-white" />
             </div>
-            <span className="text-xl font-bold">VixAuth</span>
+            <span className="text-lg font-bold text-gray-900">VixAuth</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-400">{session?.user?.email}</span>
+            <span className="text-sm text-gray-500">{session?.user?.email}</span>
+            <Link
+              to="/settings"
+              className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              title="API Keys"
+            >
+              <Key size={16} />
+            </Link>
             <button
               onClick={() => signOut().then(() => navigate('/sign-in'))}
-              className="text-gray-500 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+              className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <LogOut size={16} />
             </button>
@@ -38,42 +45,51 @@ export default function Dashboard() {
 
       <div className="max-w-4xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold">Projects</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
           <Link
             to="/projects/new"
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             <Plus size={16} /> New Project
           </Link>
         </div>
 
         {loading ? (
-          <div className="text-gray-500 text-center py-12">Loading...</div>
+          <div className="text-gray-400 text-center py-12">Loading...</div>
         ) : projects.length === 0 ? (
-          <div className="text-center py-20 bg-gray-900 rounded-2xl border border-gray-800">
-            <Phone size={40} className="text-gray-600 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-gray-300 mb-2">No projects yet</h2>
-            <p className="text-gray-500 mb-6 text-sm">Create your first project to start adding phone auth to your app.</p>
+          <div className="text-center py-20 border border-gray-200 rounded-2xl">
+            <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <Phone size={24} className="text-gray-400" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">No projects yet</h2>
+            <p className="text-gray-500 mb-6 text-sm">Create a project to start adding OTP auth to your app.</p>
             <Link
               to="/projects/new"
-              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
               <Plus size={16} /> Create Project
             </Link>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {projects.map((p) => (
               <Link
                 key={p.id}
                 to={`/projects/${p.id}`}
-                className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-5 py-4 hover:border-gray-700 transition-colors group"
+                className="flex items-center justify-between border border-gray-200 rounded-xl px-5 py-4 hover:border-gray-300 hover:shadow-sm transition-all group"
               >
-                <div>
-                  <h3 className="font-semibold text-white">{p.name}</h3>
-                  <p className="text-xs text-gray-500 mt-1 font-mono">{p.publishable_key}</p>
+                <div className="flex items-center gap-4">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                    p.auth_mode === 'email' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    {p.auth_mode === 'email' ? <Mail size={16} /> : <Phone size={16} />}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{p.name}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5 font-mono">{p.publishable_key}</p>
+                  </div>
                 </div>
-                <ChevronRight size={18} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
+                <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
               </Link>
             ))}
           </div>

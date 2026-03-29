@@ -18,14 +18,15 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return res.json()
 }
 
+export type AuthMode = 'phone' | 'email'
+
 export interface Project {
   id: string
   name: string
+  auth_mode: AuthMode
   publishable_key: string
   secret_key?: string
   database_url?: string
-  twilio_account_sid?: string
-  twilio_phone_number?: string
   allowed_origins?: string[]
   created_at: string
   updated_at?: string
@@ -37,6 +38,7 @@ export interface ProjectUser {
   email?: string
   phoneNumber?: string
   phoneNumberVerified?: boolean
+  emailVerified?: boolean
   createdAt: string
 }
 
@@ -44,6 +46,7 @@ export interface ProjectSession {
   id: string
   userId: string
   phoneNumber?: string
+  email?: string
   name?: string
   ipAddress?: string
   userAgent?: string
@@ -51,14 +54,18 @@ export interface ProjectSession {
   expiresAt: string
 }
 
+export interface AppConfig {
+  sms_enabled: boolean
+}
+
+export const getConfig = () => apiFetch<AppConfig>('/config')
+
 export const listProjects = () => apiFetch<Project[]>('/projects')
 
 export const createProject = (data: {
   name: string
+  auth_mode: AuthMode
   database_url: string
-  twilio_account_sid?: string
-  twilio_auth_token?: string
-  twilio_phone_number?: string
   allowed_origins?: string[]
 }) => apiFetch<Project>('/projects', { method: 'POST', body: JSON.stringify(data) })
 
@@ -75,3 +82,22 @@ export const getProjectUsers = (id: string) =>
 
 export const getProjectSessions = (id: string) =>
   apiFetch<ProjectSession[]>(`/projects/${id}/sessions`)
+
+// --- Developer API Keys ---
+
+export interface ApiKey {
+  id: string
+  name: string
+  key?: string        // only returned on creation
+  key_prefix: string
+  created_at: string
+  last_used_at?: string
+}
+
+export const listApiKeys = () => apiFetch<ApiKey[]>('/keys')
+
+export const createApiKey = (name: string) =>
+  apiFetch<ApiKey>('/keys', { method: 'POST', body: JSON.stringify({ name }) })
+
+export const deleteApiKey = (id: string) =>
+  apiFetch<void>(`/keys/${id}`, { method: 'DELETE' })

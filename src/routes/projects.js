@@ -9,7 +9,7 @@ const app = new Hono();
 app.get("/", async (c) => {
   const dev = c.get("developer");
   const projects = await query(
-    "SELECT id, name, publishable_key, created_at, updated_at FROM project WHERE developer_id = $1 ORDER BY created_at DESC",
+    "SELECT id, name, auth_mode, publishable_key, created_at, updated_at FROM project WHERE developer_id = $1 ORDER BY created_at DESC",
     [dev.id]
   );
   return c.json(projects);
@@ -18,10 +18,17 @@ app.get("/", async (c) => {
 // Create a project
 app.post("/", async (c) => {
   const dev = c.get("developer");
-  const { name, database_url, twilio_account_sid, twilio_auth_token, twilio_phone_number, allowed_origins } = await c.req.json();
+  const body = await c.req.json();
+  const { name, database_url, auth_mode, allowed_origins } = body;
 
   if (!name || !database_url) {
     return c.json({ error: "name and database_url are required" }, 400);
+  }
+
+  const mode = auth_mode === "phone" ? "phone" : "email";
+
+  if (mode === "phone" && !(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER)) {
+    return c.json({ error: "SMS OTP is not available — Twilio is not configured" }, 400);
   }
 
   const id = nanoid();
@@ -36,12 +43,10 @@ app.post("/", async (c) => {
   }
 
   const project = await queryOne(
-    `INSERT INTO project (id, developer_id, name, publishable_key, secret_key, database_url,
-       twilio_account_sid, twilio_auth_token, twilio_phone_number, allowed_origins)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     RETURNING id, name, publishable_key, secret_key, created_at`,
-    [id, dev.id, name, publishableKey, secretKey, database_url,
-     twilio_account_sid || null, twilio_auth_token || null, twilio_phone_number || null,
+    `INSERT INTO project (id, developer_id, name, auth_mode, publishable_key, secret_key, database_url, allowed_origins)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id, name, auth_mode, publishable_key, secret_key, created_at`,
+    [id, dev.id, name, mode, publishableKey, secretKey, database_url,
      JSON.stringify(allowed_origins || [])]
   );
 
@@ -52,8 +57,8 @@ app.post("/", async (c) => {
 app.get("/:id", async (c) => {
   const dev = c.get("developer");
   const project = await queryOne(
-    `SELECT id, name, publishable_key, secret_key, database_url,
-       twilio_account_sid, twilio_phone_number, allowed_origins, created_at, updated_at
+    `SELECT id, name, auth_mode, publishable_key, secret_key, database_url,
+       allowed_origins, created_at, updated_at
      FROM project WHERE id = $1 AND developer_id = $2`,
     [c.req.param("id"), dev.id]
   );
@@ -76,15 +81,12 @@ app.put("/:id", async (c) => {
   const project = await queryOne(
     `UPDATE project SET
        name = COALESCE($3, name),
-       twilio_account_sid = COALESCE($4, twilio_account_sid),
-       twilio_auth_token = COALESCE($5, twilio_auth_token),
-       twilio_phone_number = COALESCE($6, twilio_phone_number),
-       allowed_origins = COALESCE($7, allowed_origins),
+       auth_mode = COALESCE($4, auth_mode),
+       allowed_origins = COALESCE($5, allowed_origins),
        updated_at = NOW()
      WHERE id = $1 AND developer_id = $2
-     RETURNING id, name, publishable_key, updated_at`,
-    [id, dev.id, body.name || null, body.twilio_account_sid || null,
-     body.twilio_auth_token || null, body.twilio_phone_number || null,
+     RETURNING id, name, auth_mode, publishable_key, updated_at`,
+    [id, dev.id, body.name || null, body.auth_mode || null,
      body.allowed_origins ? JSON.stringify(body.allowed_origins) : null]
   );
 
@@ -95,7 +97,7 @@ app.put("/:id", async (c) => {
 // Delete project
 app.delete("/:id", async (c) => {
   const dev = c.get("developer");
-  const res = await query(
+  await query(
     "DELETE FROM project WHERE id = $1 AND developer_id = $2",
     [c.req.param("id"), dev.id]
   );
@@ -112,13 +114,12 @@ app.get("/:id/users", async (c) => {
   );
   if (!project) return c.json({ error: "Not found" }, 404);
 
-  // Query the project's own database for users
   const pg = await import("pg");
   const client = new pg.default.Client({ connectionString: project.database_url });
   await client.connect();
   try {
     const res = await client.query(
-      'SELECT id, name, email, "phoneNumber", "phoneNumberVerified", "createdAt" FROM "user" ORDER BY "createdAt" DESC LIMIT 100'
+      'SELECT id, name, email, "phoneNumber", "phoneNumberVerified", "emailVerified", "createdAt" FROM "user" ORDER BY "createdAt" DESC LIMIT 100'
     );
     return c.json(res.rows);
   } finally {
