@@ -1,7 +1,7 @@
 [package]
 name = "futureauth-server"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [[bin]]
 name = "futureauth-server"
@@ -26,4 +26,4 @@ hex = "0.4"
 rand = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-futureauth = "0.1"
+futureauth = { path = "../../futureauth-sdk" }

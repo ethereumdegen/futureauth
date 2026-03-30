@@ -90,6 +90,29 @@ impl Project {
         .await
     }
 
+    pub async fn regenerate_keys(
+        pool: &PgPool,
+        id: &str,
+        user_id: &str,
+        publishable_key: &str,
+        secret_key_hash: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as::<_, Project>(
+            "UPDATE project SET
+               publishable_key = $3,
+               secret_key_hash = $4,
+               updated_at = NOW()
+             WHERE id = $1 AND user_id = $2
+             RETURNING *",
+        )
+        .bind(id)
+        .bind(user_id)
+        .bind(publishable_key)
+        .bind(secret_key_hash)
+        .fetch_optional(pool)
+        .await
+    }
+
     pub async fn delete(pool: &PgPool, id: &str, user_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM project WHERE id = $1 AND user_id = $2")
             .bind(id)

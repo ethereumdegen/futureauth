@@ -102,6 +102,41 @@ pub async fn update(
     Ok(Json(project))
 }
 
+pub async fn regenerate_keys(
+    auth: DashboardAuth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Verify project exists and belongs to user
+    Project::find_by_id(&state.db, &id, &auth.user_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let publishable_key = format!("vx_pub_{}", nanoid::nanoid!(24));
+    let secret_key = format!("vx_sec_{}", nanoid::nanoid!(32));
+    let secret_hash = hash_key(&secret_key);
+
+    let project = Project::regenerate_keys(
+        &state.db,
+        &id,
+        &auth.user_id,
+        &publishable_key,
+        &secret_hash,
+    )
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(Json(serde_json::json!({
+        "id": project.id,
+        "name": project.name,
+        "otp_mode": project.otp_mode,
+        "publishable_key": project.publishable_key,
+        "secret_key": secret_key,
+        "created_at": project.created_at,
+        "updated_at": project.updated_at,
+    })))
+}
+
 pub async fn delete(
     auth: DashboardAuth,
     State(state): State<AppState>,

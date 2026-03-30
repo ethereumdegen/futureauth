@@ -103,6 +103,7 @@ async fn main() {
                 .put(routes::projects::update)
                 .delete(routes::projects::delete),
         )
+        .route("/api/projects/{id}/regenerate-keys", post(routes::projects::regenerate_keys))
         .route("/api/keys", get(routes::keys::list).post(routes::keys::create))
         .route("/api/keys/{id}", delete_route(routes::keys::delete))
         // Config

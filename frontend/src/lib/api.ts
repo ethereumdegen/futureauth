@@ -52,6 +52,9 @@ export const updateProject = (id: string, data: Record<string, unknown>) =>
 export const deleteProject = (id: string) =>
   apiFetch<void>(`/projects/${id}`, { method: 'DELETE' })
 
+export const regenerateProjectKeys = (id: string) =>
+  apiFetch<Project>(`/projects/${id}/regenerate-keys`, { method: 'POST' })
+
 // --- Developer API Keys ---
 
 export interface ApiKey {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router'
-import { getProject, deleteProject, updateProject, type Project } from '../lib/api'
-import { ArrowLeft, Copy, Check, Phone, Mail, Trash2, Code } from 'lucide-react'
+import { getProject, deleteProject, updateProject, regenerateProjectKeys, type Project } from '../lib/api'
+import { ArrowLeft, Copy, Check, Phone, Mail, Trash2, Code, Pencil, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 export default function ProjectDetail() {
@@ -10,6 +10,9 @@ export default function ProjectDetail() {
   const [project, setProject] = useState<Project | null>(null)
   const [copied, setCopied] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editName, setEditName] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -31,6 +34,24 @@ export default function ProjectDetail() {
     } finally {
       setDeleting(false)
     }
+  }
+
+  async function handleRegenerateKeys() {
+    if (!id || !confirm('Regenerate keys? Your old keys will stop working immediately.')) return
+    setRegenerating(true)
+    try {
+      const updated = await regenerateProjectKeys(id)
+      setProject(updated)
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
+  async function handleRename() {
+    if (!id || !editName.trim()) return
+    const updated = await updateProject(id, { name: editName.trim() })
+    setProject(updated)
+    setEditing(false)
   }
 
   if (!project) {
@@ -121,7 +142,26 @@ async fn me_handler(auth: AuthSession) -> Json<User> {
       <div className="max-w-4xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+            {editing ? (
+              <form onSubmit={e => { e.preventDefault(); handleRename() }} className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  onKeyDown={e => e.key === 'Escape' && setEditing(false)}
+                  className="text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-gray-900 outline-none bg-transparent"
+                />
+                <button type="submit" className="text-sm text-gray-500 hover:text-gray-900">Save</button>
+                <button type="button" onClick={() => setEditing(false)} className="text-sm text-gray-400 hover:text-gray-600">Cancel</button>
+              </form>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+                <button onClick={() => { setEditName(project.name); setEditing(true) }} className="text-gray-400 hover:text-gray-700">
+                  <Pencil size={14} />
+                </button>
+              </>
+            )}
             <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
               isPhone ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
             }`}>
@@ -150,9 +190,17 @@ async fn me_handler(auth: AuthSession) -> Json<User> {
               )}
               {!project.secret_key && (
                 <div className="text-xs text-gray-400 mt-1">
-                  Secret key was shown on creation only. Recreate the project if you lost it.
+                  Secret key was shown on creation only.
                 </div>
               )}
+              <button
+                onClick={handleRegenerateKeys}
+                disabled={regenerating}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 mt-2 transition-colors"
+              >
+                <RefreshCw size={14} className={regenerating ? 'animate-spin' : ''} />
+                {regenerating ? 'Regenerating...' : 'Regenerate Keys'}
+              </button>
             </div>
           </section>
 
