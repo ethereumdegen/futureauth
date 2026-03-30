@@ -106,10 +106,13 @@ async fn main() {
     });
     auth.ensure_tables().await.unwrap();
 
+    let state = AppState { auth: Arc::new(auth) };
+
     let app = Router::new()
-        .nest("/api/auth", auth_router())   // send-otp, verify-otp, session, sign-out
+        // IMPORTANT: use .merge(), NOT .nest() — routes already include /api/auth/ prefix
+        .merge(futureauth::axum::auth_router(state.auth.clone()))
         .route("/api/me", get(me))
-        .with_state(app_state);
+        .with_state(state);
 
     // ...
 }

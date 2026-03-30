@@ -53,6 +53,11 @@ export default function Docs() {
               <SidebarLink href="#axum-extractor">AuthSession Extractor</SidebarLink>
               <SidebarLink href="#axum-state">AppState Pattern</SidebarLink>
             </SidebarGroup>
+            <SidebarGroup title="Frontend">
+              <SidebarLink href="#frontend-client">Auth Client</SidebarLink>
+              <SidebarLink href="#frontend-session">Session Hook</SidebarLink>
+              <SidebarLink href="#frontend-mistakes">Common Mistakes</SidebarLink>
+            </SidebarGroup>
             <SidebarGroup title="Reference">
               <SidebarLink href="#schema">Database Schema</SidebarLink>
               <SidebarLink href="#api-reference">SDK API Reference</SidebarLink>
@@ -186,7 +191,8 @@ async fn main() {
     let state = AppState { auth: Arc::new(auth) };
 
     let app = Router::new()
-        .nest("/api/auth", auth_router())
+        // IMPORTANT: use .merge() — routes already include /api/auth/ prefix
+        .merge(futureauth::axum::auth_router(state.auth.clone()))
         .route("/api/me", get(me))
         .with_state(state);
 
@@ -425,12 +431,17 @@ impl AsRef<Arc<FutureAuth>> for AppState {
           {/* Axum Routes */}
           <Section id="axum-routes" title="Axum Integration — Auth Routes">
             <p>Mount the built-in auth router to get all four auth endpoints:</p>
+            <Callout type="warn">
+              Use <code className="text-xs">.merge()</code>, NOT <code className="text-xs">.nest()</code>. The routes already include the <code className="text-xs">/api/auth/</code> prefix.
+              Using <code className="text-xs">{`.nest("/api/auth", ...)`}</code> would create broken double-prefixed paths like <code className="text-xs">/api/auth/api/auth/send-otp</code>.
+            </Callout>
             <CodeBlock
               label="Router setup"
               code={`use futureauth::axum::auth_router;
 
 let app = Router::new()
-    .nest("/api/auth", auth_router())
+    // MUST use .merge() — routes already have /api/auth/ prefix
+    .merge(futureauth::axum::auth_router(state.auth.clone()))
     .with_state(state);`}
               copied={copied}
               onCopy={copy}
@@ -446,10 +457,10 @@ let app = Router::new()
                   </tr>
                 </thead>
                 <tbody className="text-gray-600">
-                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/send-otp</td><td className="px-4 py-2">Send a verification code</td></tr>
-                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/verify-otp</td><td className="px-4 py-2">Verify code, create session</td></tr>
-                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">GET</td><td className="px-4 py-2 font-mono text-xs">/session</td><td className="px-4 py-2">Get current user + session</td></tr>
-                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/sign-out</td><td className="px-4 py-2">Revoke current session</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/api/auth/send-otp</td><td className="px-4 py-2">Send a verification code</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/api/auth/verify-otp</td><td className="px-4 py-2">Verify code, create session</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">GET</td><td className="px-4 py-2 font-mono text-xs">/api/auth/session</td><td className="px-4 py-2">Get current user + session</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">POST</td><td className="px-4 py-2 font-mono text-xs">/api/auth/sign-out</td><td className="px-4 py-2">Revoke current session</td></tr>
                 </tbody>
               </table>
             </div>
@@ -457,34 +468,35 @@ let app = Router::new()
             <h4 className="font-semibold text-gray-900 mt-6 mb-2">Request/Response formats</h4>
             <CodeBlock
               label="POST /api/auth/send-otp"
-              code={`// Request
-{ "channel": "email", "destination": "user@example.com" }
+              code={`// Request — pass email OR phone (not both)
+{ "email": "user@example.com" }
+// or for SMS:
+{ "phone": "+15551234567" }
 
 // Response (200 OK)
-{ "message": "OTP sent" }`}
+{ "ok": true }`}
               copied={copied}
               onCopy={copy}
             />
             <CodeBlock
               label="POST /api/auth/verify-otp"
-              code={`// Request
-{ "identifier": "user@example.com", "code": "123456" }
+              code={`// Request — pass email OR phone (must match what was used with send-otp)
+{ "email": "user@example.com", "code": "123456" }
+// or for SMS:
+{ "phone": "+15551234567", "code": "123456" }
 
 // Response (200 OK) — also sets futureauth_session cookie
-{
-  "user": { "id": "abc123", "email": "user@example.com", ... },
-  "session": { "token": "...", "expires_at": "2026-04-28T..." }
-}`}
+{ "user": { "id": "abc123", "email": "user@example.com", ... } }`}
               copied={copied}
               onCopy={copy}
             />
             <CodeBlock
               label="GET /api/auth/session"
-              code={`// Requires futureauth_session cookie
+              code={`// Requires futureauth_session cookie (sent automatically with credentials: "include")
 // Response (200 OK)
 {
   "user": { "id": "abc123", "email": "user@example.com", ... },
-  "session": { "token": "...", "expires_at": "2026-04-28T..." }
+  "session": { "expires_at": "2026-04-28T..." }
 }
 
 // Response (401) if no valid session
@@ -545,7 +557,7 @@ impl AsRef<Arc<FutureAuth>> for AppState {
 
 // Now both auth_router() and AuthSession work with your state
 let app = Router::new()
-    .nest("/api/auth", auth_router())
+    .merge(futureauth::axum::auth_router(state.auth.clone()))
     .route("/api/me", get(me))
     .route("/api/data", get(data))
     .with_state(state);
@@ -565,6 +577,148 @@ async fn data(
               copied={copied}
               onCopy={copy}
             />
+          </Section>
+
+          {/* Frontend Client */}
+          <Section id="frontend-client" title="Frontend — Auth Client">
+            <Callout type="warn">
+              Do NOT use <code className="text-xs">better-auth</code> or any other third-party auth client. FutureAuth has its own route structure.
+              Using the wrong client will cause 404/405 errors because the paths don't match.
+            </Callout>
+            <p className="mt-3">
+              Call the FutureAuth endpoints directly with <code className="code-inline">fetch</code>. Here's a ready-to-use auth client:
+            </p>
+            <CodeBlock
+              label="src/lib/auth-client.ts"
+              code={`import { useState, useEffect } from "react";
+
+const BASE_URL = window.location.origin;
+
+export const authClient = {
+  emailOtp: {
+    async sendVerificationOtp({ email }: { email: string }) {
+      const res = await fetch(\`\${BASE_URL}/api/auth/send-otp\`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to send OTP");
+      }
+      return res.json();
+    },
+    async verifyEmail({ email, otp }: { email: string; otp: string }) {
+      const res = await fetch(\`\${BASE_URL}/api/auth/verify-otp\`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, code: otp }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { error: { message: data.error || "Verification failed" } };
+      }
+      return { data, error: null };
+    },
+  },
+};
+
+export async function signOut() {
+  await fetch(\`\${BASE_URL}/api/auth/sign-out\`, {
+    method: "POST",
+    credentials: "include",
+  });
+  window.location.href = "/";
+}`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <Callout type="info">
+              Always use <code className="text-xs">credentials: "include"</code> on every fetch call so the <code className="text-xs">futureauth_session</code> cookie is sent and received correctly.
+            </Callout>
+          </Section>
+
+          {/* Frontend Session */}
+          <Section id="frontend-session" title="Frontend — Session Hook">
+            <p>A React hook that checks the session on mount:</p>
+            <CodeBlock
+              label="useSession hook (add to auth-client.ts)"
+              code={`export function useSession() {
+  const [data, setData] = useState<any>(null);
+  const [isPending, setIsPending] = useState(true);
+
+  useEffect(() => {
+    fetch(\`\${BASE_URL}/api/auth/session\`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((session) => { setData(session); setIsPending(false); })
+      .catch(() => { setData(null); setIsPending(false); });
+  }, []);
+
+  return { data, isPending };
+}`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <p className="mt-2">Usage in your app:</p>
+            <CodeBlock
+              label="src/App.tsx"
+              code={`import { useSession, signOut } from "./lib/auth-client";
+
+export default function App() {
+  const { data: session, isPending } = useSession();
+
+  if (isPending) return <div>Loading...</div>;
+  if (!session) return <SignIn />;
+
+  return (
+    <div>
+      <p>Welcome, {session.user.email}</p>
+      <button onClick={() => signOut()}>Sign out</button>
+    </div>
+  );
+}`}
+              copied={copied}
+              onCopy={copy}
+            />
+          </Section>
+
+          {/* Frontend Common Mistakes */}
+          <Section id="frontend-mistakes" title="Frontend — Common Mistakes">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Mistake</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Why it fails</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Fix</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-600">
+                  <tr className="border-t">
+                    <td className="px-4 py-2">Using <code className="code-inline">better-auth</code> client</td>
+                    <td className="px-4 py-2">Routes don't match (e.g. <code className="code-inline">/email-otp/send-verification-otp</code> vs <code className="code-inline">/send-otp</code>)</td>
+                    <td className="px-4 py-2">Use direct fetch calls to FutureAuth endpoints</td>
+                  </tr>
+                  <tr className="border-t">
+                    <td className="px-4 py-2">Calling <code className="code-inline">/api/auth/get-session</code></td>
+                    <td className="px-4 py-2">Wrong path — returns 404</td>
+                    <td className="px-4 py-2">Use <code className="code-inline">/api/auth/session</code></td>
+                  </tr>
+                  <tr className="border-t">
+                    <td className="px-4 py-2">Sending <code className="code-inline">{`{ channel, destination }`}</code></td>
+                    <td className="px-4 py-2">Wrong body format — returns 400</td>
+                    <td className="px-4 py-2">Send <code className="code-inline">{`{ email: "..." }`}</code> or <code className="code-inline">{`{ phone: "..." }`}</code></td>
+                  </tr>
+                  <tr className="border-t">
+                    <td className="px-4 py-2">Missing <code className="code-inline">credentials: "include"</code></td>
+                    <td className="px-4 py-2">Cookie not sent/received</td>
+                    <td className="px-4 py-2">Always include on every fetch call</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </Section>
 
           {/* Schema */}
@@ -793,6 +947,14 @@ match auth.verify_otp(email, code, ip, ua).await {
               <TroubleshootItem
                 q="AuthSession extractor returns 401 unexpectedly"
                 a="The extractor reads the futureauth_session cookie. Make sure: (1) the cookie is being set correctly after verify_otp, (2) the cookie domain/path matches your setup, (3) your AppState implements AsRef<Arc<FutureAuth>>."
+              />
+              <TroubleshootItem
+                q="404 on /api/auth/get-session or 405 on auth routes"
+                a="The FutureAuth SDK routes are: /api/auth/session (not /get-session), /api/auth/send-otp, /api/auth/verify-otp, and /api/auth/sign-out. If using a third-party auth client like better-auth, replace it with direct fetch calls — the route paths are different. Also make sure you used .merge() not .nest() when mounting auth_router()."
+              />
+              <TroubleshootItem
+                q="Using .nest() causes all auth routes to 404"
+                a='The auth_router() routes already include the /api/auth/ prefix. Using .nest("/api/auth", ...) would create /api/auth/api/auth/... paths. Use .merge(futureauth::axum::auth_router(state.auth.clone())) instead.'
               />
               <TroubleshootItem
                 q="How do I use FutureAuth without Axum?"

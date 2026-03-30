@@ -16,10 +16,7 @@ FutureAuth is an **OTP delivery service**. The `futureauth` Rust SDK crate handl
 ```toml
 # Cargo.toml
 [dependencies]
-futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk" }
-
-# With Axum routes + extractor:
-# futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk", features = ["axum-integration"] }
+futureauth = { version = "0.1", features = ["axum-integration"] }
 ```
 
 ### 2. Initialize
@@ -27,10 +24,11 @@ futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk" }
 ```rust
 use futureauth::{FutureAuth, FutureAuthConfig};
 use sqlx::PgPool;
+use std::sync::Arc;
 
 let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
 
-let futureauth = FutureAuth::new(pool.clone(), FutureAuthConfig {
+let auth = FutureAuth::new(pool.clone(), FutureAuthConfig {
     api_url: "https://future-auth.com".to_string(),
     secret_key: std::env::var("FUTUREAUTH_SECRET_KEY")?,
     project_name: "My App".to_string(),
@@ -38,7 +36,7 @@ let futureauth = FutureAuth::new(pool.clone(), FutureAuthConfig {
 });
 
 // Create auth tables (idempotent)
-futureauth.ensure_tables().await?;
+auth.ensure_tables().await?;
 ```
 
 ### 3. Send OTP
@@ -83,15 +81,29 @@ match futureauth.get_session(&token).await? {
 
 ### 6. Axum integration (optional feature)
 
+> **IMPORTANT**: Use `.merge()`, NOT `.nest()`. The SDK's `auth_router()` already includes the `/api/auth/` prefix in all route paths. Using `.nest("/api/auth", ...)` would create broken double-prefixed paths like `/api/auth/api/auth/send-otp`.
+
 ```rust
 use futureauth::axum::{auth_router, AuthSession};
+use std::sync::Arc;
+
+#[derive(Clone)]
+struct AppState {
+    db: PgPool,
+    auth: Arc<FutureAuth>,
+}
+
+impl AsRef<Arc<FutureAuth>> for AppState {
+    fn as_ref(&self) -> &Arc<FutureAuth> { &self.auth }
+}
+
+let state = AppState { db: pool, auth: Arc::new(auth) };
 
 let app = Router::new()
-    // Mounts: POST /api/auth/send-otp, POST /api/auth/verify-otp,
-    //         GET /api/auth/session, POST /api/auth/sign-out
-    .nest("/api/auth", auth_router())
+    // MUST use .merge() — routes already have /api/auth/ prefix baked in
+    .merge(futureauth::axum::auth_router(state.auth.clone()))
     .route("/api/me", get(me_handler))
-    .with_state(futureauth);
+    .with_state(state);
 
 // AuthSession extractor validates cookie automatically
 async fn me_handler(auth: AuthSession) -> Json<serde_json::Value> {
@@ -99,12 +111,160 @@ async fn me_handler(auth: AuthSession) -> Json<serde_json::Value> {
 }
 ```
 
+**Routes provided by `auth_router()`:**
+
+| Method | Path | Request body | Description |
+|--------|------|-------------|-------------|
+| POST | `/api/auth/send-otp` | `{ "email": "user@example.com" }` or `{ "phone": "+15551234567" }` | Send OTP code |
+| POST | `/api/auth/verify-otp` | `{ "email": "user@example.com", "code": "123456" }` | Verify code, create session (sets cookie) |
+| GET | `/api/auth/session` | — (reads `futureauth_session` cookie) | Get current user + session |
+| POST | `/api/auth/sign-out` | — (reads `futureauth_session` cookie) | Revoke current session |
+
 ### 7. Sign out
 
 ```rust
 futureauth.revoke_session(&token).await?;
 // or revoke all: futureauth.revoke_all_sessions(&user_id).await?;
 ```
+
+## Frontend Integration (React/TypeScript)
+
+> **CRITICAL**: Do NOT use `better-auth` or any other third-party auth client library. FutureAuth has its own route structure. You must call the FutureAuth endpoints directly.
+
+The SDK routes do NOT follow the better-auth convention. Here are the correct endpoints and request formats:
+
+### Auth client helper
+
+```typescript
+// src/lib/auth-client.ts
+import { useState, useEffect } from "react";
+
+const BASE_URL = window.location.origin;
+
+export const authClient = {
+  emailOtp: {
+    async sendVerificationOtp({ email }: { email: string }) {
+      const res = await fetch(`${BASE_URL}/api/auth/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to send OTP");
+      }
+      return res.json();
+    },
+    async verifyEmail({ email, otp }: { email: string; otp: string }) {
+      const res = await fetch(`${BASE_URL}/api/auth/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, code: otp }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { error: { message: data.error || "Verification failed" } };
+      }
+      return { data, error: null };
+    },
+  },
+};
+
+export async function signOut() {
+  await fetch(`${BASE_URL}/api/auth/sign-out`, {
+    method: "POST",
+    credentials: "include",
+  });
+  window.location.href = "/";
+}
+
+export function useSession() {
+  const [data, setData] = useState<any>(null);
+  const [isPending, setIsPending] = useState(true);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/auth/session`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((session) => { setData(session); setIsPending(false); })
+      .catch(() => { setData(null); setIsPending(false); });
+  }, []);
+
+  return { data, isPending };
+}
+```
+
+### Sign-in page
+
+```tsx
+// src/pages/SignIn.tsx
+import { useState } from "react";
+import { authClient } from "../lib/auth-client";
+
+export default function SignIn() {
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState<"email" | "otp">("email");
+
+  async function handleSendOTP(e: React.FormEvent) {
+    e.preventDefault();
+    await authClient.emailOtp.sendVerificationOtp({ email });
+    setStep("otp");
+  }
+
+  async function handleVerifyOTP(e: React.FormEvent) {
+    e.preventDefault();
+    const result = await authClient.emailOtp.verifyEmail({ email, otp });
+    if (!result.error) {
+      window.location.href = "/";
+    }
+  }
+
+  return step === "email" ? (
+    <form onSubmit={handleSendOTP}>
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <button type="submit">Send Code</button>
+    </form>
+  ) : (
+    <form onSubmit={handleVerifyOTP}>
+      <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)} maxLength={6} />
+      <button type="submit">Verify</button>
+    </form>
+  );
+}
+```
+
+### App with session check
+
+```tsx
+// src/App.tsx
+import { useSession, signOut } from "./lib/auth-client";
+
+export default function App() {
+  const { data: session, isPending } = useSession();
+
+  if (isPending) return <div>Loading...</div>;
+  if (!session) return <SignIn />;
+
+  return (
+    <div>
+      <p>Welcome, {session.user.email}</p>
+      <button onClick={() => signOut()}>Sign out</button>
+    </div>
+  );
+}
+```
+
+### Common frontend mistakes
+
+| Mistake | Why it fails | Fix |
+|---------|-------------|-----|
+| Using `better-auth` client | Routes don't match (`/email-otp/send-verification-otp` vs `/send-otp`) | Use direct fetch calls to FutureAuth endpoints |
+| Calling `/api/auth/get-session` | Wrong path (404) | Use `/api/auth/session` |
+| Sending `{ channel, destination }` to send-otp | Wrong body format (400) | Send `{ email: "..." }` or `{ phone: "..." }` |
+| Sending `{ identifier, code }` to verify-otp | Wrong body format (400) | Send `{ email: "...", code: "..." }` or `{ phone: "...", code: "..." }` |
+| Missing `credentials: "include"` on fetch | Cookie not sent/received | Always include `credentials: "include"` |
 
 ## Configuration
 
@@ -136,6 +296,7 @@ All columns are **snake_case**.
 |---|---|
 | `DATABASE_URL` | Your Postgres connection string |
 | `FUTUREAUTH_SECRET_KEY` | Project secret key from FutureAuth dashboard |
+| `FUTUREAUTH_API_URL` | FutureAuth API URL (default: `https://future-auth.com`) |
 
 ## FutureAuth Dashboard API
 
@@ -164,3 +325,5 @@ DELETE /api/keys/:id          # Delete API key
 | `OtpExpired` | Code expired (default 10 min). Resend a new one. |
 | `SessionNotFound` | Token invalid or expired. Default TTL is 30 days. |
 | Database errors on startup | Ensure `ensure_tables()` runs before auth operations. Check DATABASE_URL. |
+| 404 on `/api/auth/get-session` | Wrong path. The correct path is `/api/auth/session`. |
+| 405 on auth routes | You are probably using `.nest()` instead of `.merge()`. The auth_router routes already include `/api/auth/` prefix. |
