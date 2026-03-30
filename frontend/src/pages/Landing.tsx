@@ -283,6 +283,7 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
           <div className="flex items-center gap-6 text-sm text-gray-600">
             <Link to="/docs" className="hover:text-gray-400 transition-colors">Docs</Link>
             <a href="https://github.com/ethereumdegen/futureauth-sdk" target="_blank" rel="noopener" className="hover:text-gray-400 transition-colors">GitHub</a>
+            <a href="https://github.com/ethereumdegen/future-auth-sample-project" target="_blank" rel="noopener" className="hover:text-gray-400 transition-colors">Sample Project</a>
             <a href="https://crates.io/crates/futureauth" target="_blank" rel="noopener" className="hover:text-gray-400 transition-colors">crates.io</a>
           </div>
         </div>

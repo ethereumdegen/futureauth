@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { ArrowLeft, Shield, Copy, Check, BookOpen, Terminal, Database, Zap, Package } from 'lucide-react'
+import { ArrowLeft, Shield, Copy, Check, BookOpen, Terminal, Database, Zap, Package, Rocket } from 'lucide-react'
 import { useState } from 'react'
 
 export default function Docs() {
@@ -75,6 +75,8 @@ export default function Docs() {
           <p className="text-gray-500 mb-10">
             Passwordless OTP authentication for Rust apps. Email and SMS.{' '}
             <a href="https://crates.io/crates/futureauth" target="_blank" rel="noopener" className="text-emerald-600 underline">crates.io/crates/futureauth</a>
+            {' | '}
+            <a href="https://github.com/ethereumdegen/future-auth-sample-project" target="_blank" rel="noopener" className="text-emerald-600 underline">Sample Project</a>
           </p>
 
           {/* Overview */}
@@ -972,6 +974,10 @@ match auth.verify_otp(email, code, ip, ua).await {
             <a href="https://github.com/ethereumdegen/futureauth-sdk" target="_blank" rel="noopener" className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5">
               <Terminal size={14} />
               GitHub
+            </a>
+            <a href="https://github.com/ethereumdegen/future-auth-sample-project" target="_blank" rel="noopener" className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1.5">
+              <Rocket size={14} />
+              Sample Project
             </a>
             <Link to="/sign-in" className="text-emerald-600 hover:text-emerald-700">
               Dashboard
