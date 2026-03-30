@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { signOut } from '../lib/auth-client'
 import { listApiKeys, createApiKey, deleteApiKey, type ApiKey } from '../lib/api'
-import { ArrowLeft, Plus, Trash2, Copy, Check, Key, LogOut, Phone } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Copy, Check, Key, LogOut, Shield } from 'lucide-react'
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -50,7 +50,7 @@ export default function Settings() {
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center">
-              <Phone size={14} className="text-white" />
+              <Shield size={14} className="text-white" />
             </div>
             <span className="text-lg font-bold text-gray-900">FutureAuth</span>
           </div>

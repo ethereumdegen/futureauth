@@ -31,6 +31,7 @@ export default function App() {
     return (
       <Routes>
         <Route path="/sign-in" element={<SignIn onAuth={setUser} />} />
+        <Route path="/docs" element={<Docs />} />
         <Route path="*" element={<Landing />} />
       </Routes>
     )

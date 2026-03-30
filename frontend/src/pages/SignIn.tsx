@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { sendOtp, verifyOtp, type AuthUser } from '../lib/auth-client'
-import { Phone } from 'lucide-react'
+import { Shield } from 'lucide-react'
 
 export default function SignIn({ onAuth }: { onAuth: (user: AuthUser) => void }) {
   const navigate = useNavigate()
@@ -53,7 +53,7 @@ export default function SignIn({ onAuth }: { onAuth: (user: AuthUser) => void })
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-            <Phone size={24} className="text-white" />
+            <Shield size={24} className="text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Sign in to FutureAuth</h1>
           <p className="text-gray-500 text-sm mt-1">We'll email you a verification code</p>
