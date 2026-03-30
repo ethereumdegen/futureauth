@@ -56,6 +56,11 @@ pub async fn send_otp(
         return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many requests, try again later" }))).into_response();
     }
 
+    // Rate limit by email: 3 codes per 60 seconds
+    if !state.otp_send_email_limiter.check(&body.email).await {
+        return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many codes requested for this email, try again later" }))).into_response();
+    }
+
     // Generate alphanumeric code (lowercase)
     let code: String = {
         use rand::Rng;
@@ -87,6 +92,7 @@ pub async fn send_otp(
     }
 
     // Send via Resend directly (we ARE the email service)
+    let send_success;
     if let Some(api_key) = &state.config.resend_api_key {
         if let Err(e) = crate::services::email::send_otp_email(
             &state.http,
@@ -99,13 +105,32 @@ pub async fn send_otp(
         .await
         {
             tracing::error!("Failed to send email: {e}");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Failed to send code" }))).into_response();
+            send_success = false;
+        } else {
+            send_success = true;
         }
     } else {
         tracing::debug!("[FutureAuth] Dashboard OTP generated for {}", body.email);
+        send_success = true;
     }
 
-    (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
+    // Log the OTP send attempt
+    let _ = sqlx::query(
+        "INSERT INTO otp_log (id, event, email, ip, success) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(nanoid::nanoid!())
+    .bind("send")
+    .bind(&body.email)
+    .bind(&ip)
+    .bind(send_success)
+    .execute(&state.db)
+    .await;
+
+    if send_success {
+        (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Failed to send code" }))).into_response()
+    }
 }
 
 /// Verify OTP — fully delegated to the SDK. Creates user + session in SDK tables.
@@ -138,7 +163,22 @@ pub async fn verify_otp(
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    match state.auth.verify_otp(&body.email, &body.code, ip.as_deref(), ua.as_deref()).await {
+    let result = state.auth.verify_otp(&body.email, &body.code, ip.as_deref(), ua.as_deref()).await;
+    let success = result.is_ok();
+
+    // Log the OTP verify attempt
+    let _ = sqlx::query(
+        "INSERT INTO otp_log (id, event, email, ip, success) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(nanoid::nanoid!())
+    .bind("verify")
+    .bind(&body.email)
+    .bind(&client_ip)
+    .bind(success)
+    .execute(&state.db)
+    .await;
+
+    match result {
         Ok((user, session)) => {
             let cookie_name = &state.auth.config.cookie_name;
             let cookie = format!(

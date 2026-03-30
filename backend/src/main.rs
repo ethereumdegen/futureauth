@@ -31,6 +31,7 @@ pub struct AppState {
     pub http: reqwest::Client,
     pub auth: Arc<FutureAuth>,
     pub otp_send_limiter: RateLimiter,
+    pub otp_send_email_limiter: RateLimiter,
     pub otp_verify_limiter: RateLimiter,
 }
 
@@ -74,6 +75,7 @@ async fn main() {
         http: reqwest::Client::new(),
         auth,
         otp_send_limiter: RateLimiter::new(5, std::time::Duration::from_secs(60)),
+        otp_send_email_limiter: RateLimiter::new(10, std::time::Duration::from_secs(60)),
         otp_verify_limiter: RateLimiter::new(5, std::time::Duration::from_secs(60)),
     };
 
@@ -396,7 +398,7 @@ async fn api_docs(
                                     "required": ["email", "code"],
                                     "properties": {
                                         "email": { "type": "string", "format": "email" },
-                                        "code": { "type": "string", "description": "6-digit OTP code" }
+                                        "code": { "type": "string", "description": "6-character alphanumeric OTP code" }
                                     }
                                 }
                             }
