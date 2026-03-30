@@ -92,7 +92,7 @@ export default function Docs() {
               <li><strong>The API</strong> (future-auth.com) — a hosted service that delivers OTP codes via email (Resend) or SMS (Twilio)</li>
             </ol>
             <p className="mt-3">
-              FutureAuth never stores your users or sessions. It only delivers the 6-digit code. Everything else happens locally in your database.
+              FutureAuth never stores your users or sessions. It only delivers the 6-character code. Everything else happens locally in your database.
             </p>
             <Callout type="info">
               Think of FutureAuth like Stripe for auth codes — you own the users, we deliver the codes.
@@ -267,7 +267,7 @@ FUTUREAUTH_SECRET_KEY=vx_sec_xxxxxxxxxxxx`}
                       label="Send email OTP"
                       code={`use futureauth::OtpChannel;
 
-// Send a 6-digit code to the user's email via Resend
+// Send a 6-character code to the user's email via Resend
 auth.send_otp(OtpChannel::Email, "user@example.com").await?;`}
                       copied={copied}
                       onCopy={copy}
@@ -281,7 +281,7 @@ auth.send_otp(OtpChannel::Email, "user@example.com").await?;`}
                       label="Send SMS OTP"
                       code={`use futureauth::OtpChannel;
 
-// Send a 6-digit code to the user's phone via Twilio
+// Send a 6-character code to the user's phone via Twilio
 auth.send_otp(OtpChannel::Phone, "+15551234567").await?;`}
                       copied={copied}
                       onCopy={copy}
@@ -312,7 +312,7 @@ auth.send_otp(OtpChannel::Phone, "+15551234567").await?;`}
               label="Verify OTP and create session"
               code={`let (user, session) = auth.verify_otp(
     "user@example.com",  // the identifier (email or phone)
-    "123456",            // the code the user entered
+    "a1b2c3",            // the code the user entered
     Some("127.0.0.1"),   // optional: client IP address
     Some("Mozilla/5.0"), // optional: client user agent
 ).await?;
@@ -491,9 +491,9 @@ let app = Router::new()
             <CodeBlock
               label="POST /api/auth/verify-otp"
               code={`// Request — pass email OR phone (must match what was used with send-otp)
-{ "email": "user@example.com", "code": "123456" }
+{ "email": "user@example.com", "code": "a1b2c3" }
 // or for SMS:
-{ "phone": "+15551234567", "code": "123456" }
+{ "phone": "+15551234567", "code": "a1b2c3" }
 
 // Response (200 OK) — also sets futureauth_session cookie
 { "user": { "id": "abc123", "email": "user@example.com", ... } }`}
@@ -800,7 +800,7 @@ export default function App() {
             <p className="text-sm text-gray-600 mb-1">Verify a code and create a session. Auto-creates the user if they don't exist.</p>
             <ul className="text-sm text-gray-500 list-disc list-inside mb-4">
               <li><code className="code-inline">identifier</code> — the email or phone that was used with <code className="code-inline">send_otp()</code></li>
-              <li><code className="code-inline">code</code> — the 6-digit code the user entered</li>
+              <li><code className="code-inline">code</code> — the 6-character code the user entered</li>
               <li><code className="code-inline">ip</code> — optional client IP address (stored on session)</li>
               <li><code className="code-inline">user_agent</code> — optional client user agent (stored on session)</li>
             </ul>

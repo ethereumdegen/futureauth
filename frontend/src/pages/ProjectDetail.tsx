@@ -97,7 +97,7 @@ futureauth.send_otp(
     ? `// Verify OTP — returns (User, Session)
 let (user, session) = futureauth.verify_otp(
     "+15551234567",
-    "123456",
+    "a1b2c3",
     Some(ip_address),
     Some(user_agent),
 ).await?;
@@ -105,7 +105,7 @@ let (user, session) = futureauth.verify_otp(
     : `// Verify OTP — returns (User, Session)
 let (user, session) = futureauth.verify_otp(
     "user@example.com",
-    "123456",
+    "a1b2c3",
     Some(ip_address),
     Some(user_agent),
 ).await?;
@@ -228,7 +228,7 @@ async fn me_handler(auth: AuthSession) -> Json<User> {
             <div className="border-l-2 border-amber-400 bg-amber-50 text-amber-800 px-4 py-3 rounded-r-lg text-sm mt-2 mb-4">
               <strong>Important:</strong> Add brute-force protection on your verify endpoint. Use escalating delays
               after each failed attempt (e.g., 0s → 30s → 60s → 5min → invalidate code).
-              A 6-digit code can be guessed without attempt limits. See the{' '}
+              Without attempt limits, an attacker could make unlimited guesses. See the{' '}
               <Link to="/docs#brute-force" className="underline font-medium">docs</Link> for a full example.
             </div>
           </section>

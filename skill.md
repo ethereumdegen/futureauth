@@ -58,7 +58,7 @@ The SDK generates a random code, stores it in your `verification` table, then ca
 ```rust
 let (user, session) = futureauth.verify_otp(
     "user@example.com",  // or phone number
-    "123456",            // code entered by user
+    "a1b2c3",            // code entered by user
     Some("127.0.0.1"),   // optional IP
     Some("Mozilla/5.0"), // optional user agent
 ).await?;
@@ -116,7 +116,7 @@ async fn me_handler(auth: AuthSession) -> Json<serde_json::Value> {
 | Method | Path | Request body | Description |
 |--------|------|-------------|-------------|
 | POST | `/api/auth/send-otp` | `{ "email": "user@example.com" }` or `{ "phone": "+15551234567" }` | Send OTP code |
-| POST | `/api/auth/verify-otp` | `{ "email": "user@example.com", "code": "123456" }` | Verify code, create session (sets cookie) |
+| POST | `/api/auth/verify-otp` | `{ "email": "user@example.com", "code": "a1b2c3" }` | Verify code, create session (sets cookie) |
 | GET | `/api/auth/session` | — (reads `futureauth_session` cookie) | Get current user + session |
 | POST | `/api/auth/sign-out` | — (reads `futureauth_session` cookie) | Revoke current session |
 
@@ -275,7 +275,7 @@ FutureAuthConfig {
     project_name: String,    // Shown in OTP emails/SMS
     session_ttl: Duration,   // Default: 30 days
     otp_ttl: Duration,       // Default: 10 minutes
-    otp_length: usize,       // Default: 6 digits
+    otp_length: usize,       // Default: 6 characters (alphanumeric)
     cookie_name: String,     // Default: "futureauth_session"
 }
 ```

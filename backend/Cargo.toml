@@ -27,4 +27,4 @@ hex = "0.4"
 rand = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-futureauth = "0.2"
+futureauth = "0.3.1"

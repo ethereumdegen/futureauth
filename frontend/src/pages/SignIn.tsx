@@ -99,7 +99,7 @@ export default function SignIn({ onAuth }: { onAuth: (user: AuthUser) => void })
                   required
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="123456"
+                  placeholder="a1b2c3"
                   autoFocus
                   className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-center text-lg tracking-widest font-mono"
                 />
