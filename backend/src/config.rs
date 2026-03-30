@@ -5,6 +5,7 @@ pub struct Config {
     pub database_url: String,
     pub port: u16,
     pub cors_origin: String,
+    pub hmac_secret: String,
     pub resend_api_key: Option<String>,
     pub resend_from_email: String,
     pub twilio_account_sid: Option<String>,
@@ -22,6 +23,7 @@ impl Config {
                 .expect("PORT must be a number"),
             cors_origin: env::var("CORS_ORIGIN")
                 .unwrap_or_else(|_| "http://localhost:5180".into()),
+            hmac_secret: env::var("HMAC_SECRET").expect("HMAC_SECRET required"),
             resend_api_key: env::var("RESEND_API_KEY").ok(),
             resend_from_email: env::var("RESEND_FROM_EMAIL")
                 .unwrap_or_else(|_| "noreply@future-auth.com".into()),

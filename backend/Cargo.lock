@@ -543,6 +543,7 @@ dependencies = [
  "chrono",
  "futureauth",
  "hex",
+ "hmac",
  "nanoid",
  "rand",
  "reqwest",

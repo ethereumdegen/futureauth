@@ -1,7 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 use sqlx::{FromRow, PgPool};
+
+type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct DeveloperApiKey {
@@ -15,10 +18,11 @@ pub struct DeveloperApiKey {
     pub last_used_at: Option<DateTime<Utc>>,
 }
 
-pub fn hash_key(key: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(key.as_bytes());
-    hex::encode(hasher.finalize())
+pub fn hash_key(key: &str, secret: &str) -> String {
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .expect("HMAC accepts any key length");
+    mac.update(key.as_bytes());
+    hex::encode(mac.finalize().into_bytes())
 }
 
 impl DeveloperApiKey {
@@ -62,8 +66,8 @@ impl DeveloperApiKey {
     }
 
     /// Resolve an API key to a (user_id, email) from the SDK's "user" table.
-    pub async fn resolve_user(pool: &PgPool, raw_key: &str) -> Result<Option<(String, String)>, sqlx::Error> {
-        let hash = hash_key(raw_key);
+    pub async fn resolve_user(pool: &PgPool, raw_key: &str, hmac_secret: &str) -> Result<Option<(String, String)>, sqlx::Error> {
+        let hash = hash_key(raw_key, hmac_secret);
         let row = sqlx::query_as::<_, (String, Option<String>)>(
             r#"SELECT u.id, u.email FROM developer_api_key ak JOIN "user" u ON u.id = ak.user_id WHERE ak.key_hash = $1"#,
         )

@@ -40,14 +40,20 @@ pub async fn create(
     if body.name.is_empty() {
         return Err(AppError::BadRequest("name is required".into()));
     }
+    if body.name.len() > 100 {
+        return Err(AppError::BadRequest("name must be 100 characters or fewer".into()));
+    }
 
     let mode = body.otp_mode.as_deref().unwrap_or("email");
+    if mode != "email" && mode != "phone" {
+        return Err(AppError::BadRequest("otp_mode must be 'email' or 'phone'".into()));
+    }
     if mode == "phone" && !state.config.sms_enabled() {
         return Err(AppError::BadRequest("SMS is not available — Twilio not configured".into()));
     }
 
     let secret_key = format!("vx_sec_{}", nanoid::nanoid!(32));
-    let secret_hash = hash_key(&secret_key);
+    let secret_hash = hash_key(&secret_key, &state.config.hmac_secret);
 
     let project = Project::create(
         &state.db,
@@ -110,7 +116,7 @@ pub async fn regenerate_keys(
         .ok_or(AppError::NotFound)?;
 
     let secret_key = format!("vx_sec_{}", nanoid::nanoid!(32));
-    let secret_hash = hash_key(&secret_key);
+    let secret_hash = hash_key(&secret_key, &state.config.hmac_secret);
 
     let project = Project::regenerate_keys(
         &state.db,

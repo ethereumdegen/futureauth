@@ -30,7 +30,7 @@ impl FromRequestParts<AppState> for ProjectAuth {
             .strip_prefix("Bearer ")
             .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        let hash = hash_key(secret_key);
+        let hash = hash_key(secret_key, &state.config.hmac_secret);
         let project = Project::find_by_secret_hash(&state.db, &hash)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?

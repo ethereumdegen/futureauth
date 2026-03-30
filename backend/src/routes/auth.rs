@@ -19,13 +19,43 @@ pub struct VerifyOtpRequest {
     pub code: String,
 }
 
+fn is_valid_email(email: &str) -> bool {
+    let parts: Vec<&str> = email.splitn(2, '@').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    let (local, domain) = (parts[0], parts[1]);
+    !local.is_empty() && domain.contains('.') && domain.len() > 2 && email.len() <= 254
+}
+
+fn extract_client_ip(headers: &HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .or_else(|| headers.get("x-real-ip"))
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
 /// Send OTP — stores code in SDK's verification table, sends email directly.
 /// This is the only auth route that doesn't fully delegate to the SDK,
 /// because this server IS the email delivery service.
 pub async fn send_otp(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<SendOtpRequest>,
 ) -> impl IntoResponse {
+    if !is_valid_email(&body.email) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid email address" }))).into_response();
+    }
+
+    // Rate limit by IP: 5 requests per 60 seconds
+    let ip = extract_client_ip(&headers);
+    if !state.otp_send_limiter.check(&ip).await {
+        return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many requests, try again later" }))).into_response();
+    }
+
     // Generate code
     let code: String = {
         use rand::Rng;
@@ -71,7 +101,7 @@ pub async fn send_otp(
             return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Failed to send code" }))).into_response();
         }
     } else {
-        tracing::info!("[FutureAuth] Dashboard OTP {code} → {}", body.email);
+        tracing::debug!("[FutureAuth] Dashboard OTP generated for {}", body.email);
     }
 
     (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
@@ -83,6 +113,19 @@ pub async fn verify_otp(
     headers: HeaderMap,
     Json(body): Json<VerifyOtpRequest>,
 ) -> impl IntoResponse {
+    if !is_valid_email(&body.email) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid email address" }))).into_response();
+    }
+    if body.code.len() != 6 || !body.code.chars().all(|c| c.is_ascii_digit()) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Code must be exactly 6 digits" }))).into_response();
+    }
+
+    // Rate limit by IP: 5 attempts per 60 seconds
+    let client_ip = extract_client_ip(&headers);
+    if !state.otp_verify_limiter.check(&client_ip).await {
+        return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many attempts, try again later" }))).into_response();
+    }
+
     let ip = headers
         .get("x-forwarded-for")
         .or_else(|| headers.get("x-real-ip"))
@@ -98,7 +141,7 @@ pub async fn verify_otp(
         Ok((user, session)) => {
             let cookie_name = &state.auth.config.cookie_name;
             let cookie = format!(
-                "{cookie_name}={}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
+                "{cookie_name}={}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={}",
                 session.token,
                 state.auth.config.session_ttl.as_secs()
             );
@@ -156,6 +199,6 @@ pub async fn sign_out(
         let _ = state.auth.revoke_session(token).await;
     }
 
-    let clear = format!("{cookie_name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+    let clear = format!("{cookie_name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0");
     (StatusCode::OK, [("set-cookie", clear)], Json(serde_json::json!({ "ok": true })))
 }

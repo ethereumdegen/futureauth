@@ -32,7 +32,7 @@ pub async fn create(
     let name = body.name.unwrap_or_else(|| "Untitled".into());
     let raw_key = format!("vxk_{}", nanoid::nanoid!(40));
     let prefix = format!("{}...", &raw_key[..12]);
-    let hash = hash_key(&raw_key);
+    let hash = hash_key(&raw_key, &state.config.hmac_secret);
 
     let key = DeveloperApiKey::create(&state.db, &auth.user_id, &name, &hash, &prefix).await?;
 

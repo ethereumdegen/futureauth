@@ -23,7 +23,7 @@ impl FromRequestParts<AppState> for DashboardAuth {
         if let Some(auth_header) = parts.headers.get("authorization").and_then(|v| v.to_str().ok()) {
             if let Some(key) = auth_header.strip_prefix("Bearer vxk_") {
                 let raw_key = format!("vxk_{key}");
-                if let Ok(Some((user_id, email))) = DeveloperApiKey::resolve_user(&state.db, &raw_key).await {
+                if let Ok(Some((user_id, email))) = DeveloperApiKey::resolve_user(&state.db, &raw_key, &state.config.hmac_secret).await {
                     return Ok(DashboardAuth { user_id, email });
                 }
                 return Err(StatusCode::UNAUTHORIZED);

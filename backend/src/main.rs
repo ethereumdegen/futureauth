@@ -2,12 +2,14 @@ mod config;
 mod error;
 mod middleware;
 mod models;
+mod rate_limit;
 mod routes;
 mod services;
 
 use std::sync::Arc;
 
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{get, post, put, delete as delete_route},
     Router,
     response::IntoResponse,
@@ -20,6 +22,7 @@ use tower_http::trace::TraceLayer;
 use futureauth::{FutureAuth, FutureAuthConfig};
 
 use config::Config;
+use rate_limit::RateLimiter;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -27,6 +30,8 @@ pub struct AppState {
     pub config: Config,
     pub http: reqwest::Client,
     pub auth: Arc<FutureAuth>,
+    pub otp_send_limiter: RateLimiter,
+    pub otp_verify_limiter: RateLimiter,
 }
 
 impl AsRef<Arc<FutureAuth>> for AppState {
@@ -68,6 +73,8 @@ async fn main() {
         config,
         http: reqwest::Client::new(),
         auth,
+        otp_send_limiter: RateLimiter::new(5, std::time::Duration::from_secs(60)),
+        otp_verify_limiter: RateLimiter::new(5, std::time::Duration::from_secs(60)),
     };
 
     let cors = CorsLayer::new()
@@ -116,6 +123,8 @@ async fn main() {
         .route("/health", get(health))
         // Static dashboard files (SPA fallback)
         .fallback(serve_dashboard)
+        .layer(DefaultBodyLimit::max(1024 * 64)) // 64 KB
+        .layer(axum::middleware::from_fn(security_headers))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -520,15 +529,41 @@ async fn api_docs(
     }))
 }
 
+async fn security_headers(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> impl IntoResponse {
+    let mut resp = next.run(req).await;
+    let headers = resp.headers_mut();
+    headers.insert("x-content-type-options", "nosniff".parse().unwrap());
+    headers.insert("x-frame-options", "DENY".parse().unwrap());
+    headers.insert(
+        "strict-transport-security",
+        "max-age=31536000; includeSubDomains".parse().unwrap(),
+    );
+    headers.insert("x-xss-protection", "1; mode=block".parse().unwrap());
+    resp
+}
+
 async fn serve_dashboard(
     uri: axum::http::Uri,
 ) -> impl IntoResponse {
     let path = uri.path();
+    let base = std::path::Path::new("./frontend/dist");
 
     // Try to serve static file
     if path.contains('.') {
-        let file_path = format!("./frontend/dist{path}");
-        if let Ok(content) = tokio::fs::read(&file_path).await {
+        let requested = base.join(path.trim_start_matches('/'));
+        let Ok(canonical) = requested.canonicalize() else {
+            return (StatusCode::NOT_FOUND, "Not found").into_response();
+        };
+        let Ok(base_canonical) = base.canonicalize() else {
+            return (StatusCode::NOT_FOUND, "Dashboard not built").into_response();
+        };
+        if !canonical.starts_with(&base_canonical) {
+            return (StatusCode::FORBIDDEN, "Forbidden").into_response();
+        }
+        if let Ok(content) = tokio::fs::read(&canonical).await {
             let ext = path.rsplit('.').next().unwrap_or("");
             let content_type = match ext {
                 "js" => "application/javascript",
