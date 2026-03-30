@@ -198,9 +198,13 @@ pub async fn verify_otp(
             tracing::warn!("OTP max attempts exceeded for {}", body.email);
             (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many failed attempts, please request a new code" }))).into_response()
         }
-        Err(e) => {
-            tracing::warn!("OTP verification failed: {e}");
+        Err(futureauth::FutureAuthError::InvalidOtp | futureauth::FutureAuthError::OtpExpired) => {
+            tracing::warn!("OTP verification failed for {}", body.email);
             (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid or expired code" }))).into_response()
+        }
+        Err(e) => {
+            tracing::error!("OTP verification error: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Verification failed" }))).into_response()
         }
     }
 }

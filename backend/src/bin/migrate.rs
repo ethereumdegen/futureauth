@@ -2,6 +2,7 @@ use sqlx::PgPool;
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let fresh = std::env::args().any(|a| a == "--fresh");
 
