@@ -225,6 +225,12 @@ async fn me_handler(auth: AuthSession) -> Json<User> {
           <section>
             <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Verify OTP</h2>
             <CodeBlock file="Verify & create session" code={verifyCode} />
+            <div className="border-l-2 border-amber-400 bg-amber-50 text-amber-800 px-4 py-3 rounded-r-lg text-sm mt-2 mb-4">
+              <strong>Important:</strong> Add brute-force protection on your verify endpoint. Use escalating delays
+              after each failed attempt (e.g., 0s → 30s → 60s → 5min → invalidate code).
+              A 6-digit code can be guessed without attempt limits. See the{' '}
+              <Link to="/docs#brute-force" className="underline font-medium">docs</Link> for a full example.
+            </div>
           </section>
 
           <section>

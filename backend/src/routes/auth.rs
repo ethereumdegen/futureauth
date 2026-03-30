@@ -56,11 +56,12 @@ pub async fn send_otp(
         return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many requests, try again later" }))).into_response();
     }
 
-    // Generate code
+    // Generate alphanumeric code (lowercase)
     let code: String = {
         use rand::Rng;
+        const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
         let mut rng = rand::thread_rng();
-        (0..6).map(|_| rng.gen_range(0..10).to_string()).collect()
+        (0..6).map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char).collect()
     };
 
     // Delete old codes and store new one (same table the SDK's verify_otp reads from)
@@ -70,7 +71,7 @@ pub async fn send_otp(
         .await;
 
     let id = nanoid::nanoid!();
-    let expires_at = chrono::Utc::now() + chrono::Duration::minutes(10);
+    let expires_at = chrono::Utc::now() + chrono::Duration::minutes(2);
     if let Err(e) = sqlx::query(
         "INSERT INTO verification (id, identifier, code, expires_at) VALUES ($1, $2, $3, $4)",
     )
@@ -116,8 +117,8 @@ pub async fn verify_otp(
     if !is_valid_email(&body.email) {
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid email address" }))).into_response();
     }
-    if body.code.len() != 6 || !body.code.chars().all(|c| c.is_ascii_digit()) {
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Code must be exactly 6 digits" }))).into_response();
+    if body.code.len() != 6 || !body.code.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Code must be exactly 6 lowercase alphanumeric characters" }))).into_response();
     }
 
     // Rate limit by IP: 5 attempts per 60 seconds

@@ -26,7 +26,7 @@ impl Config {
             hmac_secret: env::var("HMAC_SECRET").expect("HMAC_SECRET required"),
             resend_api_key: env::var("RESEND_API_KEY").ok(),
             resend_from_email: env::var("RESEND_FROM_EMAIL")
-                .unwrap_or_else(|_| "noreply@future-auth.com".into()),
+                .unwrap_or_else(|_| "noreply@auth.future-auth.com".into()),
             twilio_account_sid: env::var("TWILIO_ACCOUNT_SID").ok(),
             twilio_auth_token: env::var("TWILIO_AUTH_TOKEN").ok(),
             twilio_phone_number: env::var("TWILIO_PHONE_NUMBER").ok(),

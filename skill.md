@@ -316,13 +316,82 @@ POST   /api/keys              # Create API key { name }
 DELETE /api/keys/:id          # Delete API key
 ```
 
+## Security: Brute-Force Protection
+
+**A 6-character alphanumeric OTP has ~2.2 billion possible values (36^6), which is much stronger than a 6-digit code.** However, without attempt limits an attacker can still make many guesses. App developers MUST add rate limiting with escalating delays on their verify endpoint.
+
+### Recommended: iPhone-style escalating delays per identifier
+
+| Failed attempts | Delay before next try |
+|---|---|
+| 1–2 | None (immediate) |
+| 3 | 30 seconds |
+| 4 | 60 seconds |
+| 5 | 5 minutes |
+| 6+ | Code invalidated — must request a new one |
+
+### Implementation pattern
+
+```rust
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::Mutex;
+
+#[derive(Clone)]
+pub struct OtpAttemptTracker {
+    state: Arc<Mutex<HashMap<String, (u32, Instant)>>>,
+    max_failures: u32,
+}
+
+impl OtpAttemptTracker {
+    pub fn new(max_failures: u32) -> Self {
+        Self { state: Arc::new(Mutex::new(HashMap::new())), max_failures }
+    }
+
+    fn delay_secs(failures: u32) -> u64 {
+        match failures { 0..=1 => 0, 2 => 30, 3 => 60, _ => 300 }
+    }
+
+    /// Ok(()) = allowed, Err(secs) = locked out, Err(0) = code should be invalidated
+    pub async fn check(&self, id: &str) -> Result<(), u64> {
+        let state = self.state.lock().await;
+        let Some(&(failures, last)) = state.get(id) else { return Ok(()) };
+        if failures >= self.max_failures { return Err(0) }
+        let delay = Self::delay_secs(failures);
+        if delay == 0 { return Ok(()) }
+        let elapsed = last.elapsed().as_secs();
+        if elapsed >= delay { Ok(()) } else { Err(delay - elapsed) }
+    }
+
+    pub async fn record_failure(&self, id: &str) {
+        let mut state = self.state.lock().await;
+        let entry = state.entry(id.to_string()).or_insert((0, Instant::now()));
+        entry.0 += 1;
+        entry.1 = Instant::now();
+    }
+
+    pub async fn clear(&self, id: &str) {
+        self.state.lock().await.remove(id);
+    }
+}
+```
+
+**Key rules:**
+- Check attempts BEFORE calling `verify_otp()`
+- On failure: `tracker.record_failure(&email)`
+- On success: `tracker.clear(&email)`
+- On new code sent: `tracker.clear(&email)` (reset attempts for fresh code)
+- Return `retry_after` seconds in 429 response so frontend can show countdown
+- Also add per-IP rate limiting (e.g., 5 verify requests/minute) as a separate layer
+
 ## Common Errors
 
 | Error | Fix |
 |---|---|
 | `OtpDeliveryFailed` | Check FutureAuth project has valid Resend/Twilio creds. Verify secret key. |
 | `InvalidOtp` | Wrong code or already used. Codes are single-use. |
-| `OtpExpired` | Code expired (default 10 min). Resend a new one. |
+| `OtpExpired` | Code expired (default 2 min). Resend a new one. |
 | `SessionNotFound` | Token invalid or expired. Default TTL is 30 days. |
 | Database errors on startup | Ensure `ensure_tables()` runs before auth operations. Check DATABASE_URL. |
 | 404 on `/api/auth/get-session` | Wrong path. The correct path is `/api/auth/session`. |

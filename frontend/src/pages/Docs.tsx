@@ -58,6 +58,9 @@ export default function Docs() {
               <SidebarLink href="#frontend-session">Session Hook</SidebarLink>
               <SidebarLink href="#frontend-mistakes">Common Mistakes</SidebarLink>
             </SidebarGroup>
+            <SidebarGroup title="Security">
+              <SidebarLink href="#brute-force">Brute-Force Protection</SidebarLink>
+            </SidebarGroup>
             <SidebarGroup title="Reference">
               <SidebarLink href="#schema">Database Schema</SidebarLink>
               <SidebarLink href="#api-reference">SDK API Reference</SidebarLink>
@@ -290,7 +293,7 @@ auth.send_otp(OtpChannel::Phone, "+15551234567").await?;`}
             <h4 className="font-semibold text-gray-900 mt-4 mb-2">What happens internally</h4>
             <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
               <li>Any existing codes for this identifier are deleted</li>
-              <li>A new random code is generated (default: 6 digits)</li>
+              <li>A new random code is generated (6 lowercase alphanumeric characters)</li>
               <li>The code is stored in the <code className="code-inline">verification</code> table with an expiry time</li>
               <li>The FutureAuth API is called to deliver the code via the appropriate channel</li>
             </ol>
@@ -323,7 +326,7 @@ auth.send_otp(OtpChannel::Phone, "+15551234567").await?;`}
             <h4 className="font-semibold text-gray-900 mt-4 mb-2">What happens internally</h4>
             <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
               <li>Looks up the code in the <code className="code-inline">verification</code> table</li>
-              <li>Checks if the code is expired (default: 10 minutes)</li>
+              <li>Checks if the code is expired (default: 2 minutes)</li>
               <li>Deletes the code (single-use)</li>
               <li>Finds or creates the user by email/phone</li>
               <li>Marks the email/phone as verified on the user record</li>
@@ -332,6 +335,11 @@ auth.send_otp(OtpChannel::Phone, "+15551234567").await?;`}
             </ol>
             <Callout type="info">
               If the user doesn't exist, <code className="text-xs">verify_otp()</code> auto-creates them. This is a combined sign-up and sign-in flow.
+            </Callout>
+            <Callout type="warn">
+              Without brute-force protection, an attacker could make unlimited guesses at the verification code.
+              You <strong>must</strong> add rate limiting with escalating delays on your verify endpoint. See the{' '}
+              <a href="#brute-force" className="underline">Brute-Force Protection</a> section.
             </Callout>
           </Section>
 
@@ -905,7 +913,7 @@ export default function App() {
                 </thead>
                 <tbody className="text-gray-600">
                   <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">InvalidOtp</td><td className="px-4 py-2">Wrong code entered</td><td className="px-4 py-2">Ask user to re-enter or resend</td></tr>
-                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">OtpExpired</td><td className="px-4 py-2">Code expired (default: 10 min)</td><td className="px-4 py-2">Send a new code</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">OtpExpired</td><td className="px-4 py-2">Code expired (default: 2 min)</td><td className="px-4 py-2">Send a new code</td></tr>
                   <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">OtpDeliveryFailed</td><td className="px-4 py-2">FutureAuth API couldn't send</td><td className="px-4 py-2">Check secret key, project config</td></tr>
                   <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">SessionNotFound</td><td className="px-4 py-2">Invalid/expired token</td><td className="px-4 py-2">Redirect to sign-in</td></tr>
                   <tr className="border-t"><td className="px-4 py-2 font-mono text-xs">DatabaseError</td><td className="px-4 py-2">sqlx error</td><td className="px-4 py-2">Check DATABASE_URL, connectivity</td></tr>
@@ -936,7 +944,7 @@ match auth.verify_otp(email, code, ip, ua).await {
               />
               <TroubleshootItem
                 q="InvalidOtp or OtpExpired when calling verify_otp()"
-                a="The code was wrong or expired. Codes expire after 10 minutes by default (configurable via otp_ttl). Codes are single-use — once verified, they're deleted. Sending a new code also invalidates any previous code."
+                a="The code was wrong or expired. Codes expire after 2 minutes by default (configurable via otp_ttl). Codes are single-use — once verified, they're deleted. Sending a new code also invalidates any previous code."
               />
               <TroubleshootItem
                 q="Session validation always returns None"
@@ -963,6 +971,155 @@ match auth.verify_otp(email, code, ip, ua).await {
                 a='Don&apos;t enable the axum-integration feature. Use the core SDK methods directly: send_otp(), verify_otp(), get_session(), revoke_session(). You handle cookie/token extraction yourself.'
               />
             </div>
+          </Section>
+
+          {/* Brute-Force Protection */}
+          <Section id="brute-force" title="Brute-Force Protection">
+            <Callout type="warn">
+              A 6-character alphanumeric OTP has over 2 billion possible values, but without attempt limits an attacker could
+              still make many guesses. <strong>You are responsible for rate-limiting your verify endpoint.</strong>
+            </Callout>
+            <h4 className="font-semibold text-gray-900 mt-6 mb-2">Recommended: escalating delays (iPhone-style)</h4>
+            <p>
+              Like an iPhone's passcode lockout, increase the delay after each failed attempt for a given email/phone.
+              This makes brute-forcing mathematically infeasible while keeping the UX smooth for legitimate users who mistype once or twice.
+            </p>
+            <div className="overflow-x-auto mt-4 mb-4">
+              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Failed attempts</th>
+                    <th className="text-left px-4 py-2 font-medium text-gray-700">Delay before next try</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-600">
+                  <tr className="border-t"><td className="px-4 py-2">1–2</td><td className="px-4 py-2">None (immediate)</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2">3</td><td className="px-4 py-2">30 seconds</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2">4</td><td className="px-4 py-2">60 seconds</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2">5</td><td className="px-4 py-2">5 minutes</td></tr>
+                  <tr className="border-t"><td className="px-4 py-2 font-medium">6+</td><td className="px-4 py-2 font-medium">Code invalidated — must request a new one</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              With this schedule and a 2-minute code TTL, an attacker gets at most <strong>5 guesses per code</strong> — a
+              0.00000023% chance of guessing correctly. Without it, they could make thousands of attempts.
+            </p>
+            <CodeBlock
+              label="Brute-force protection (Rust/Axum example)"
+              code={`use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::Mutex;
+
+/// Track failed OTP attempts per identifier with escalating delays.
+#[derive(Clone)]
+pub struct OtpAttemptTracker {
+    state: Arc<Mutex<HashMap<String, (u32, Instant)>>>,
+    max_failures: u32,
+}
+
+impl OtpAttemptTracker {
+    pub fn new(max_failures: u32) -> Self {
+        Self { state: Arc::new(Mutex::new(HashMap::new())), max_failures }
+    }
+
+    fn delay_secs(failures: u32) -> u64 {
+        match failures {
+            0..=1 => 0,
+            2     => 30,
+            3     => 60,
+            _     => 300,
+        }
+    }
+
+    /// Returns Ok(()) if allowed, Err(retry_after_secs) if locked out,
+    /// or Err(0) if the code should be invalidated (too many failures).
+    pub async fn check(&self, id: &str) -> Result<(), u64> {
+        let state = self.state.lock().await;
+        let Some(&(failures, last)) = state.get(id) else { return Ok(()) };
+        if failures >= self.max_failures { return Err(0) }
+        let delay = Self::delay_secs(failures);
+        if delay == 0 { return Ok(()) }
+        let elapsed = last.elapsed().as_secs();
+        if elapsed >= delay { Ok(()) } else { Err(delay - elapsed) }
+    }
+
+    pub async fn record_failure(&self, id: &str) {
+        let mut state = self.state.lock().await;
+        let entry = state.entry(id.to_string())
+            .or_insert((0, Instant::now()));
+        entry.0 += 1;
+        entry.1 = Instant::now();
+    }
+
+    /// Clear on successful verify or when a new code is sent.
+    pub async fn clear(&self, id: &str) {
+        self.state.lock().await.remove(id);
+    }
+}
+
+// In your verify handler:
+match tracker.check(&email).await {
+    Err(0) => {
+        // Delete code from verification table
+        // Return 429: "Too many attempts. Request a new code."
+    }
+    Err(retry_after) => {
+        // Return 429 with retry_after
+        // { "error": "Too many attempts", "retry_after": 30 }
+    }
+    Ok(()) => { /* proceed with verify_otp() */ }
+}
+// On failure: tracker.record_failure(&email).await;
+// On success: tracker.clear(&email).await;
+// On new code sent: tracker.clear(&email).await;`}
+              copied={copied}
+              onCopy={copy}
+            />
+            <h4 className="font-semibold text-gray-900 mt-6 mb-2">Additional layers</h4>
+            <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+              <li><strong>Per-IP rate limit</strong> — cap total verify requests per IP (e.g., 5/minute) to prevent one source from attacking many accounts</li>
+              <li><strong>Return <code className="code-inline">retry_after</code> in the response</strong> — so your frontend can show a countdown timer and disable the submit button</li>
+              <li><strong>Clear attempts on new code</strong> — when a user requests a fresh code, reset their attempt counter</li>
+              <li><strong>Invalidate code on max failures</strong> — after 5–6 wrong guesses, delete the code and force a resend</li>
+            </ul>
+            <h4 className="font-semibold text-gray-900 mt-6 mb-2">Frontend: showing the lockout</h4>
+            <CodeBlock
+              label="React countdown example"
+              code={`const [retryAfter, setRetryAfter] = useState(0);
+
+async function handleVerify(e: React.FormEvent) {
+  e.preventDefault();
+  const res = await fetch("/api/auth/verify-otp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, code }),
+  });
+  const data = await res.json();
+  if (res.status === 429 && data.retry_after) {
+    setRetryAfter(data.retry_after);
+    const interval = setInterval(() => {
+      setRetryAfter((n) => {
+        if (n <= 1) { clearInterval(interval); return 0; }
+        return n - 1;
+      });
+    }, 1000);
+    return;
+  }
+  // ... handle success or other errors
+}
+
+// In JSX:
+<button disabled={retryAfter > 0}>
+  {retryAfter > 0
+    ? \`Try again in \${retryAfter}s\`
+    : "Verify"}
+</button>`}
+              copied={copied}
+              onCopy={copy}
+            />
           </Section>
 
           {/* Footer links */}

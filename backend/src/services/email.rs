@@ -29,7 +29,7 @@ pub async fn send_otp_email(
                 <h2 style="margin-bottom: 8px;">{safe_name}</h2>
                 <p>Your sign-in code:</p>
                 <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px; padding: 16px 0;">{safe_code}</div>
-                <p style="color: #666; font-size: 14px;">This code expires in 10 minutes. If you didn't request this, ignore this email.</p>
+                <p style="color: #666; font-size: 14px;">This code expires in 2 minutes. If you didn't request this, ignore this email.</p>
             </div>"#
         ),
     });
