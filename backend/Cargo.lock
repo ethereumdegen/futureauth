@@ -517,6 +517,8 @@ dependencies = [
 [[package]]
 name = "futureauth"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baa73b2f185df745851b29a8ab76e1fef18d2044618a17eab2592824022ef4a1"
 dependencies = [
  "axum",
  "axum-extra",
