@@ -56,8 +56,9 @@ pub async fn send_otp(
         return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many requests, try again later" }))).into_response();
     }
 
-    // Rate limit by email: 3 codes per 60 seconds
-    if !state.otp_send_email_limiter.check(&body.email).await {
+    // Rate limit by email per project: 10 codes per 60 seconds
+    let email_key = format!("dashboard:{}", body.email);
+    if !state.otp_send_email_limiter.check(&email_key).await {
         return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many codes requested for this email, try again later" }))).into_response();
     }
 

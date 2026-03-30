@@ -25,6 +25,16 @@ pub async fn send(
     State(state): State<AppState>,
     Json(body): Json<SendOtpRequest>,
 ) -> impl IntoResponse {
+    // Rate limit by email per project: 10 codes per 60 seconds
+    let email_key = format!("{}:{}", project_auth.project.id, body.destination);
+    if !state.otp_send_email_limiter.check(&email_key).await {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({ "error": "Too many codes requested for this destination, try again later" })),
+        )
+            .into_response();
+    }
+
     let project_name = body
         .project_name
         .as_deref()
