@@ -727,7 +727,6 @@ async fn data(
 #   "id": "abc123",
 #   "name": "My App",
 #   "otp_mode": "email",
-#   "publishable_key": "vx_pub_xxxx",
 #   "secret_key": "vx_sec_xxxx",
 #   "created_at": "2026-03-29T..."
 # }`}

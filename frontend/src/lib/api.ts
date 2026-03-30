@@ -24,8 +24,7 @@ export interface Project {
   id: string
   name: string
   otp_mode: OtpMode
-  publishable_key: string
-  secret_key?: string  // only returned on creation
+  secret_key?: string  // only returned on creation/regeneration
   created_at: string
   updated_at?: string
 }

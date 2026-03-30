@@ -128,9 +128,14 @@ async fn main() {
 }
 
 async fn run_migrations(pool: &PgPool) {
-    let sql = include_str!("../migrations/001_init.sql");
-    if let Err(e) = sqlx::raw_sql(sql).execute(pool).await {
-        tracing::error!("Migration failed: {e}");
+    let init = include_str!("../migrations/001_init.sql");
+    if let Err(e) = sqlx::raw_sql(init).execute(pool).await {
+        tracing::error!("Migration 001 failed: {e}");
+        std::process::exit(1);
+    }
+    let drop_pub_key = include_str!("../migrations/002_drop_publishable_key.sql");
+    if let Err(e) = sqlx::raw_sql(drop_pub_key).execute(pool).await {
+        tracing::error!("Migration 002 failed: {e}");
         std::process::exit(1);
     }
     tracing::info!("Migrations complete");
@@ -289,7 +294,7 @@ async fn api_docs(
             "/api/projects/{id}/regenerate-keys": {
                 "post": {
                     "operationId": "regenerateProjectKeys",
-                    "summary": "Regenerate publishable and secret keys for a project",
+                    "summary": "Regenerate the secret key for a project",
                     "security": [{ "apiKey": [] }, { "sessionCookie": [] }],
                     "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
                     "responses": {
@@ -462,7 +467,6 @@ async fn api_docs(
                         "id": { "type": "string" },
                         "name": { "type": "string" },
                         "otp_mode": { "type": "string", "enum": ["email", "phone"] },
-                        "publishable_key": { "type": "string", "description": "Public key (vx_pub_...) — safe to expose in client code" },
                         "created_at": { "type": "string", "format": "date-time" },
                         "updated_at": { "type": "string", "format": "date-time" }
                     }
@@ -474,7 +478,6 @@ async fn api_docs(
                         "id": { "type": "string" },
                         "name": { "type": "string" },
                         "otp_mode": { "type": "string", "enum": ["email", "phone"] },
-                        "publishable_key": { "type": "string" },
                         "secret_key": { "type": "string", "description": "Secret key (vx_sec_...) — only shown once, store securely" },
                         "created_at": { "type": "string", "format": "date-time" }
                     }

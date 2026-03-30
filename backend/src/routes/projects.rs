@@ -46,7 +46,6 @@ pub async fn create(
         return Err(AppError::BadRequest("SMS is not available — Twilio not configured".into()));
     }
 
-    let publishable_key = format!("vx_pub_{}", nanoid::nanoid!(24));
     let secret_key = format!("vx_sec_{}", nanoid::nanoid!(32));
     let secret_hash = hash_key(&secret_key);
 
@@ -55,7 +54,6 @@ pub async fn create(
         &auth.user_id,
         &body.name,
         mode,
-        &publishable_key,
         &secret_hash,
     )
     .await?;
@@ -66,7 +64,6 @@ pub async fn create(
             "id": project.id,
             "name": project.name,
             "otp_mode": project.otp_mode,
-            "publishable_key": project.publishable_key,
             "secret_key": secret_key,
             "created_at": project.created_at,
         })),
@@ -112,7 +109,6 @@ pub async fn regenerate_keys(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    let publishable_key = format!("vx_pub_{}", nanoid::nanoid!(24));
     let secret_key = format!("vx_sec_{}", nanoid::nanoid!(32));
     let secret_hash = hash_key(&secret_key);
 
@@ -120,7 +116,6 @@ pub async fn regenerate_keys(
         &state.db,
         &id,
         &auth.user_id,
-        &publishable_key,
         &secret_hash,
     )
     .await?
@@ -130,7 +125,6 @@ pub async fn regenerate_keys(
         "id": project.id,
         "name": project.name,
         "otp_mode": project.otp_mode,
-        "publishable_key": project.publishable_key,
         "secret_key": secret_key,
         "created_at": project.created_at,
         "updated_at": project.updated_at,

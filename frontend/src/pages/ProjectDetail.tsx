@@ -177,14 +177,13 @@ async fn me_handler(auth: AuthSession) -> Json<User> {
             <Trash2 size={14} /> {deleting ? 'Deleting...' : 'Delete'}
           </button>
         </div>
-        <p className="text-gray-400 text-sm font-mono mb-8">{project.publishable_key}</p>
+        <p className="text-gray-400 text-sm font-mono mb-8">{project.id}</p>
 
         <div className="space-y-8">
           {/* API Keys */}
           <section>
-            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Project Keys</h2>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Secret Key</h2>
             <div className="space-y-2">
-              <KeyRow label="Publishable Key" value={project.publishable_key} copied={copied} onCopy={copy} />
               {project.secret_key && (
                 <KeyRow label="Secret Key" value={project.secret_key} copied={copied} onCopy={copy} secret />
               )}

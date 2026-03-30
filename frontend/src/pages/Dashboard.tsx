@@ -92,7 +92,7 @@ export default function Dashboard({ user, onSignOut }: { user: AuthUser; onSignO
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">{p.name}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5 font-mono">{p.publishable_key}</p>
+                    <p className="text-xs text-gray-400 mt-0.5 font-mono">{p.id}</p>
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-gray-300 group-hover:text-gray-500 transition-colors" />

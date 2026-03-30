@@ -7,7 +7,6 @@ pub struct Project {
     pub id: String,
     pub user_id: String,
     pub name: String,
-    pub publishable_key: String,
     #[serde(skip_serializing)]
     pub secret_key_hash: String,
     pub otp_mode: String,
@@ -49,19 +48,17 @@ impl Project {
         user_id: &str,
         name: &str,
         otp_mode: &str,
-        publishable_key: &str,
         secret_key_hash: &str,
     ) -> Result<Self, sqlx::Error> {
         let id = nanoid::nanoid!();
         sqlx::query_as::<_, Project>(
-            "INSERT INTO project (id, user_id, name, otp_mode, publishable_key, secret_key_hash)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+            "INSERT INTO project (id, user_id, name, otp_mode, secret_key_hash)
+             VALUES ($1, $2, $3, $4, $5) RETURNING *",
         )
         .bind(&id)
         .bind(user_id)
         .bind(name)
         .bind(otp_mode)
-        .bind(publishable_key)
         .bind(secret_key_hash)
         .fetch_one(pool)
         .await
@@ -94,20 +91,17 @@ impl Project {
         pool: &PgPool,
         id: &str,
         user_id: &str,
-        publishable_key: &str,
         secret_key_hash: &str,
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as::<_, Project>(
             "UPDATE project SET
-               publishable_key = $3,
-               secret_key_hash = $4,
+               secret_key_hash = $3,
                updated_at = NOW()
              WHERE id = $1 AND user_id = $2
              RETURNING *",
         )
         .bind(id)
         .bind(user_id)
-        .bind(publishable_key)
         .bind(secret_key_hash)
         .fetch_optional(pool)
         .await

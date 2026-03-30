@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS project (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
-    publishable_key TEXT NOT NULL UNIQUE,
     secret_key_hash TEXT NOT NULL,
     otp_mode TEXT NOT NULL DEFAULT 'email',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -13,7 +12,6 @@ CREATE TABLE IF NOT EXISTS project (
 );
 
 CREATE INDEX IF NOT EXISTS idx_project_user ON project(user_id);
-CREATE INDEX IF NOT EXISTS idx_project_pub_key ON project(publishable_key);
 
 CREATE TABLE IF NOT EXISTS developer_api_key (
     id TEXT PRIMARY KEY,
