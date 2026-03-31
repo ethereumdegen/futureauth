@@ -21,7 +21,7 @@ export default function NewProject() {
     setError('')
     try {
       const project = await createProject({ name, otp_mode: otpMode })
-      navigate(`/projects/${project.id}`)
+      navigate(`/projects/${project.id}`, { state: { secret_key: project.secret_key } })
     } catch (e: any) {
       setError(e.message || 'Failed to create project')
     } finally {

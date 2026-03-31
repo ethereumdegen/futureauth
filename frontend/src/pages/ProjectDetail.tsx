@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router'
+import { useParams, Link, useLocation } from 'react-router'
 import { getProject, deleteProject, updateProject, regenerateProjectKeys, type Project } from '../lib/api'
 import { ArrowLeft, Copy, Check, Phone, Mail, Trash2, Code, Pencil, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router'
@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router'
 export default function ProjectDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [project, setProject] = useState<Project | null>(null)
   const [copied, setCopied] = useState('')
   const [deleting, setDeleting] = useState(false)
@@ -16,7 +17,11 @@ export default function ProjectDetail() {
 
   useEffect(() => {
     if (!id) return
-    getProject(id).then(setProject)
+    const secretKey = location.state?.secret_key
+    getProject(id).then(p => {
+      if (secretKey) p.secret_key = secretKey
+      setProject(p)
+    })
   }, [id])
 
   function copy(text: string, label: string) {
