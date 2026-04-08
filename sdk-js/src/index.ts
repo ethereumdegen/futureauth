@@ -1,0 +1,5 @@
+export { FutureAuth } from './futureauth.js'
+export { FutureAuthError } from './errors.js'
+export { defaultConfig } from './config.js'
+export type { FutureAuthConfig } from './config.js'
+export type { User, Session, Verification, OtpChannel } from './types.js'

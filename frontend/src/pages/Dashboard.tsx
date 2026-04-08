@@ -21,7 +21,7 @@ export default function Dashboard({ user, onSignOut }: { user: AuthUser; onSignO
             <div className="w-7 h-7 bg-emerald-600 rounded-lg flex items-center justify-center">
               <Shield size={14} className="text-white" />
             </div>
-            <span className="text-lg font-bold text-gray-900">FutureAuth</span>
+            <Link to="/" className="text-lg font-bold text-gray-900">FutureAuth</Link>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">{user.email}</span>
@@ -40,7 +40,7 @@ export default function Dashboard({ user, onSignOut }: { user: AuthUser; onSignO
               <Key size={16} />
             </Link>
             <button
-              onClick={() => signOut().then(() => { onSignOut(); navigate('/sign-in'); })}
+              onClick={() => signOut().then(() => { onSignOut(); navigate('/'); })}
               className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <LogOut size={16} />

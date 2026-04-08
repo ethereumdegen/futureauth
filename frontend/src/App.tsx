@@ -29,26 +29,17 @@ export default function App() {
     )
   }
 
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="/sign-in" element={<SignIn onAuth={setUser} />} />
-        <Route path="/auth/verify" element={<AuthVerify onAuth={setUser} />} />
-        <Route path="/docs" element={<Docs />} />
-        <Route path="*" element={<Landing />} />
-      </Routes>
-    )
-  }
-
   return (
     <Routes>
-      <Route path="/" element={<Dashboard user={user} onSignOut={() => setUser(null)} />} />
-      <Route path="/projects/new" element={<NewProject />} />
-      <Route path="/projects/:id" element={<ProjectDetail />} />
+      <Route path="/" element={<Landing user={user} onSignOut={() => setUser(null)} />} />
+      <Route path="/dashboard" element={user ? <Dashboard user={user} onSignOut={() => setUser(null)} /> : <Navigate to="/sign-in" />} />
+      <Route path="/projects/new" element={user ? <NewProject /> : <Navigate to="/sign-in" />} />
+      <Route path="/projects/:id" element={user ? <ProjectDetail /> : <Navigate to="/sign-in" />} />
+      <Route path="/settings" element={user ? <Settings /> : <Navigate to="/sign-in" />} />
+      <Route path="/admin" element={user ? <Admin /> : <Navigate to="/sign-in" />} />
+      <Route path="/sign-in" element={<SignIn onAuth={setUser} />} />
       <Route path="/auth/verify" element={<AuthVerify onAuth={setUser} />} />
       <Route path="/docs" element={<Docs />} />
-      <Route path="/settings" element={<Settings />} />
-      <Route path="/admin" element={<Admin />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   )

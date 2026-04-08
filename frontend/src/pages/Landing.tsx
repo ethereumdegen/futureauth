@@ -1,7 +1,8 @@
 import { Link } from 'react-router'
-import { Mail, Phone, ArrowRight, Shield, Zap, Database, Terminal, BookOpen, Github, Package, Link as LinkIcon } from 'lucide-react'
+import { Mail, Phone, ArrowRight, Shield, Zap, Database, Terminal, BookOpen, Github, Package, Link as LinkIcon, LogOut } from 'lucide-react'
+import { signOut, type AuthUser } from '../lib/auth-client'
 
-export default function Landing() {
+export default function Landing({ user, onSignOut }: { user?: AuthUser | null; onSignOut?: () => void }) {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <nav className="border-b border-gray-800/50 sticky top-0 bg-gray-950/70 backdrop-blur-xl z-10">
@@ -25,9 +26,25 @@ export default function Landing() {
               <BookOpen size={14} />
               Docs
             </Link>
-            <Link to="/sign-in" className="bg-white text-gray-900 hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              Dashboard
-            </Link>
+            {user ? (
+              <>
+                <Link to="/dashboard" className="bg-white text-gray-900 hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                  Dashboard
+                </Link>
+                <span className="text-sm text-gray-400">{user.email}</span>
+                <button
+                  onClick={() => signOut().then(() => onSignOut?.())}
+                  className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut size={16} />
+                </button>
+              </>
+            ) : (
+              <Link to="/sign-in" className="bg-white text-gray-900 hover:bg-gray-100 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Dashboard
+              </Link>
+            )}
           </div>
         </div>
       </nav>
@@ -64,7 +81,7 @@ export default function Landing() {
 
           <div className="flex items-center gap-4 flex-wrap">
             <Link
-              to="/sign-in"
+              to={user ? "/dashboard" : "/sign-in"}
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3.5 rounded-xl text-lg font-medium transition-colors"
             >
               Get API Keys <ArrowRight size={20} />
@@ -260,7 +277,7 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
           </div>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link
-              to="/sign-in"
+              to={user ? "/dashboard" : "/sign-in"}
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3.5 rounded-xl text-lg font-medium transition-colors"
             >
               Get API Keys <ArrowRight size={20} />

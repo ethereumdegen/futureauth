@@ -36,7 +36,7 @@ export default function Admin() {
         <div className="text-center">
           <p className="text-red-600 text-lg font-medium mb-2">Access Denied</p>
           <p className="text-gray-500 text-sm">{error}</p>
-          <Link to="/" className="text-sm text-gray-500 hover:text-gray-900 mt-4 inline-block">Back to Dashboard</Link>
+          <Link to="/dashboard" className="text-sm text-gray-500 hover:text-gray-900 mt-4 inline-block">Back to Dashboard</Link>
         </div>
       </div>
     )
@@ -46,7 +46,7 @@ export default function Admin() {
     <div className="min-h-screen bg-white">
       <nav className="border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
-          <Link to="/" className="flex items-center gap-2 text-gray-500 hover:text-gray-900 text-sm transition-colors">
+          <Link to="/dashboard" className="flex items-center gap-2 text-gray-500 hover:text-gray-900 text-sm transition-colors">
             <ArrowLeft size={16} /> Dashboard
           </Link>
           <span className="text-gray-300">/</span>

@@ -1,0 +1,33 @@
+{
+  "name": "futureauth",
+  "version": "0.4.0",
+  "description": "Passwordless OTP authentication for Node.js — users and sessions live in your own Postgres database",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["auth", "otp", "passwordless", "authentication", "magic-link"],
+  "license": "MIT",
+  "dependencies": {
+    "nanoid": "^5.0.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0"
+  }
+}

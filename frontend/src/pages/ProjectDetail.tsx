@@ -38,7 +38,7 @@ export default function ProjectDetail() {
     setDeleting(true)
     try {
       await deleteProject(id)
-      navigate('/')
+      navigate('/dashboard')
     } finally {
       setDeleting(false)
     }
@@ -71,7 +71,7 @@ export default function ProjectDetail() {
       <nav className="border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/" className="flex items-center gap-2 text-gray-500 hover:text-gray-900 text-sm transition-colors">
+            <Link to="/dashboard" className="flex items-center gap-2 text-gray-500 hover:text-gray-900 text-sm transition-colors">
               <ArrowLeft size={16} /> Projects
             </Link>
             <span className="text-gray-300">/</span>
