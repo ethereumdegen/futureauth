@@ -17,6 +17,25 @@ pub struct SendOtpRequest {
     pub project_name: Option<String>,
 }
 
+async fn log_otp_event(
+    db: &sqlx::PgPool,
+    event: &str,
+    email: &str,
+    success: bool,
+    project_id: &str,
+) {
+    let _ = sqlx::query(
+        "INSERT INTO otp_log (id, event, email, success, project_id) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(nanoid::nanoid!())
+    .bind(event)
+    .bind(email)
+    .bind(success)
+    .bind(project_id)
+    .execute(db)
+    .await;
+}
+
 /// POST /api/v1/otp/send
 /// Called by the SDK to deliver an OTP code via email or SMS.
 /// Authenticated with project secret key.
@@ -25,6 +44,34 @@ pub async fn send(
     State(state): State<AppState>,
     Json(body): Json<SendOtpRequest>,
 ) -> impl IntoResponse {
+    // Plan-based daily unique email limit
+    let project_id = &project_auth.project.id;
+    let plan = crate::models::project_plan::ProjectPlan::find_by_project(&state.db, project_id)
+        .await
+        .ok()
+        .flatten();
+    let daily_limit = plan.as_ref().map_or(50, |p| p.daily_limit());
+    let plan_name = plan.as_ref().map_or("free", |p| p.plan.as_str()).to_string();
+
+    let (count, _is_new) = crate::models::daily_usage::DailyUsage::record_email(
+        &state.db, project_id, &body.destination,
+    )
+    .await
+    .unwrap_or((0, false));
+
+    if i64::from(count) > daily_limit {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({
+                "error": format!("Daily unique email limit reached ({}/{}). Upgrade your plan for higher limits.", count, daily_limit),
+                "plan": plan_name,
+                "usage": count,
+                "limit": daily_limit,
+            })),
+        )
+            .into_response();
+    }
+
     // Rate limit by email per project: 10 codes per 60 seconds
     let email_key = format!("{}:{}", project_auth.project.id, body.destination);
     if !state.otp_send_email_limiter.check(&email_key).await {
@@ -63,9 +110,13 @@ pub async fn send(
             )
             .await
             {
-                Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+                Ok(()) => {
+                    log_otp_event(&state.db, "send", &body.destination, true, project_id).await;
+                    (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
+                }
                 Err(e) => {
                     tracing::error!("Email delivery failed: {e}");
+                    log_otp_event(&state.db, "send", &body.destination, false, project_id).await;
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(serde_json::json!({ "error": "Failed to send email" })),
@@ -101,9 +152,13 @@ pub async fn send(
             )
             .await
             {
-                Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+                Ok(()) => {
+                    log_otp_event(&state.db, "send_sms", &body.destination, true, project_id).await;
+                    (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
+                }
                 Err(e) => {
                     tracing::error!("SMS delivery failed: {e}");
+                    log_otp_event(&state.db, "send_sms", &body.destination, false, project_id).await;
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(serde_json::json!({ "error": "Failed to send SMS" })),
@@ -147,9 +202,13 @@ pub async fn send(
             )
             .await
             {
-                Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+                Ok(()) => {
+                    log_otp_event(&state.db, "send_magic_link", &body.destination, true, project_id).await;
+                    (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
+                }
                 Err(e) => {
                     tracing::error!("Magic link email delivery failed: {e}");
+                    log_otp_event(&state.db, "send_magic_link", &body.destination, false, project_id).await;
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(serde_json::json!({ "error": "Failed to send magic link email" })),

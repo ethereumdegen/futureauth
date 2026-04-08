@@ -1,10 +1,10 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::middleware::dashboard_auth::DashboardAuth;
@@ -146,4 +146,61 @@ pub async fn delete(
 ) -> Result<StatusCode, AppError> {
     Project::delete(&state.db, &id, &auth.user_id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+pub struct LogsQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct OtpLogEntry {
+    pub id: String,
+    pub event: String,
+    pub email: String,
+    pub ip: Option<String>,
+    pub success: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Serialize)]
+pub struct LogsResponse {
+    pub logs: Vec<OtpLogEntry>,
+    pub total: i64,
+}
+
+pub async fn logs(
+    auth: DashboardAuth,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<LogsQuery>,
+) -> Result<Json<LogsResponse>, AppError> {
+    // Verify project belongs to user
+    Project::find_by_id(&state.db, &id, &auth.user_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let limit = query.limit.unwrap_or(50).min(200);
+    let offset = query.offset.unwrap_or(0);
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM otp_log WHERE project_id = $1",
+    )
+    .bind(&id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(format!("Failed to count logs: {e}")))?;
+
+    let logs: Vec<OtpLogEntry> = sqlx::query_as(
+        "SELECT id, event, email, ip, success, created_at FROM otp_log WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+    )
+    .bind(&id)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(format!("Failed to fetch logs: {e}")))?;
+
+    Ok(Json(LogsResponse { logs, total }))
 }

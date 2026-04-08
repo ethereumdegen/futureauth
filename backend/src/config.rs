@@ -11,6 +11,10 @@ pub struct Config {
     pub twilio_account_sid: Option<String>,
     pub twilio_auth_token: Option<String>,
     pub twilio_phone_number: Option<String>,
+    pub stripe_secret_key: Option<String>,
+    pub stripe_webhook_secret: Option<String>,
+    pub stripe_price_id: Option<String>,
+    pub admin_emails: Vec<String>,
 }
 
 impl Config {
@@ -30,6 +34,15 @@ impl Config {
             twilio_account_sid: env::var("TWILIO_ACCOUNT_SID").ok(),
             twilio_auth_token: env::var("TWILIO_AUTH_TOKEN").ok(),
             twilio_phone_number: env::var("TWILIO_PHONE_NUMBER").ok(),
+            stripe_secret_key: env::var("STRIPE_SECRET_KEY").ok(),
+            stripe_webhook_secret: env::var("STRIPE_WEBHOOK_SECRET").ok(),
+            stripe_price_id: env::var("STRIPE_PRICE_ID").ok(),
+            admin_emails: env::var("ADMIN_EMAILS")
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect(),
         }
     }
 
@@ -41,5 +54,13 @@ impl Config {
 
     pub fn email_enabled(&self) -> bool {
         self.resend_api_key.is_some()
+    }
+
+    pub fn stripe_enabled(&self) -> bool {
+        self.stripe_secret_key.is_some() && self.stripe_price_id.is_some()
+    }
+
+    pub fn is_admin(&self, email: &str) -> bool {
+        self.admin_emails.contains(&email.to_lowercase())
     }
 }

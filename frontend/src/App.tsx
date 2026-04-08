@@ -9,6 +9,7 @@ import ProjectDetail from './pages/ProjectDetail'
 import NewProject from './pages/NewProject'
 import Settings from './pages/Settings'
 import Docs from './pages/Docs'
+import Admin from './pages/Admin'
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -47,6 +48,7 @@ export default function App() {
       <Route path="/auth/verify" element={<AuthVerify onAuth={setUser} />} />
       <Route path="/docs" element={<Docs />} />
       <Route path="/settings" element={<Settings />} />
+      <Route path="/admin" element={<Admin />} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   )

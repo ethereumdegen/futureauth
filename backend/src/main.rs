@@ -115,6 +115,16 @@ async fn main() {
                 .delete(routes::projects::delete),
         )
         .route("/api/projects/{id}/regenerate-keys", post(routes::projects::regenerate_keys))
+        .route("/api/projects/{id}/logs", get(routes::projects::logs))
+        // Billing
+        .route("/api/projects/{id}/billing", get(routes::billing::get_billing))
+        .route("/api/projects/{id}/billing/checkout", post(routes::billing::create_checkout))
+        .route("/api/projects/{id}/billing/portal", post(routes::billing::create_portal))
+        .route("/api/webhooks/stripe", post(routes::billing::stripe_webhook))
+        // Admin
+        .route("/api/admin/overview", get(routes::admin::overview))
+        .route("/api/admin/projects", get(routes::admin::list_projects))
+        .route("/api/admin/config", get(routes::admin::get_config))
         .route("/api/keys", get(routes::keys::list).post(routes::keys::create))
         .route("/api/keys/{id}", delete_route(routes::keys::delete))
         // Config
@@ -156,6 +166,16 @@ async fn run_migrations(pool: &PgPool) {
         tracing::error!("Migration 004 failed: {e}");
         std::process::exit(1);
     }
+    let otp_log_project = include_str!("../migrations/005_otp_log_project_id.sql");
+    if let Err(e) = sqlx::raw_sql(otp_log_project).execute(pool).await {
+        tracing::error!("Migration 005 failed: {e}");
+        std::process::exit(1);
+    }
+    let billing = include_str!("../migrations/006_billing.sql");
+    if let Err(e) = sqlx::raw_sql(billing).execute(pool).await {
+        tracing::error!("Migration 006 failed: {e}");
+        std::process::exit(1);
+    }
     tracing::info!("Migrations complete");
 }
 
@@ -169,6 +189,7 @@ async fn get_config(
     axum::Json(serde_json::json!({
         "sms_enabled": state.config.sms_enabled(),
         "email_enabled": state.config.email_enabled(),
+        "stripe_enabled": state.config.stripe_enabled(),
     }))
 }
 
