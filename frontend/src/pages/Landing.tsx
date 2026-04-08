@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { Mail, Phone, ArrowRight, Shield, Zap, Database, Terminal, BookOpen, Github, Package } from 'lucide-react'
+import { Mail, Phone, ArrowRight, Shield, Zap, Database, Terminal, BookOpen, Github, Package, Link as LinkIcon } from 'lucide-react'
 
 export default function Landing() {
   return (
@@ -36,8 +36,8 @@ export default function Landing() {
       <section className="max-w-5xl mx-auto px-6 pt-28 pb-16">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 bg-emerald-600/10 border border-emerald-600/20 rounded-full px-4 py-1.5 mb-6">
-            <Package size={14} className="text-emerald-400" />
-            <span className="text-sm text-emerald-400 font-medium">Now on crates.io</span>
+            <LinkIcon size={14} className="text-emerald-400" />
+            <span className="text-sm text-emerald-400 font-medium">Now with magic link auth</span>
           </div>
           <h1 className="text-5xl sm:text-6xl font-bold leading-tight mb-6">
             Passwordless auth
@@ -47,8 +47,8 @@ export default function Landing() {
             </span>
           </h1>
           <p className="text-xl text-gray-400 leading-relaxed mb-8">
-            Add email or SMS OTP authentication to any Rust backend. Users and sessions live in your own Postgres.
-            FutureAuth only delivers the codes.
+            Add magic link or OTP authentication to any Rust backend. Users and sessions live in your own Postgres.
+            FutureAuth delivers the emails and SMS.
           </p>
 
           {/* Install command */}
@@ -109,7 +109,8 @@ async fn main() {
     let state = AppState { auth: Arc::new(auth) };
 
     let app = Router::new()
-        // IMPORTANT: use .merge(), NOT .nest() — routes already include /api/auth/ prefix
+        // Adds /api/auth/send-magic-link, /api/auth/verify-magic-link,
+        // /api/auth/send-otp, /api/auth/verify-otp, session, sign-out
         .merge(futureauth::axum::auth_router(state.auth.clone()))
         .route("/api/me", get(me))
         .with_state(state);
@@ -132,7 +133,7 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
         <div className="max-w-5xl mx-auto px-6 py-24">
           <h2 className="text-2xl font-bold mb-3 text-center">How it works</h2>
           <p className="text-gray-500 text-center mb-14 max-w-xl mx-auto">
-            Your app owns the data. FutureAuth delivers the codes.
+            Your app owns the data. FutureAuth delivers the emails and SMS.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -144,7 +145,7 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
               <ul className="space-y-2 text-sm text-gray-400">
                 <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Users table with email, phone, metadata</li>
                 <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Sessions with opaque tokens, IP, user agent</li>
-                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Verification codes (auto-deleted after use)</li>
+                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Verification codes and magic link tokens (auto-deleted after use)</li>
                 <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Created by <code className="text-xs bg-gray-800 px-1 rounded">ensure_tables()</code> — zero manual migrations</li>
               </ul>
             </div>
@@ -154,10 +155,10 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
                 FutureAuth API
               </h3>
               <ul className="space-y-2 text-sm text-gray-400">
-                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Delivers OTP codes via email (Resend)</li>
-                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Delivers OTP codes via SMS (Twilio)</li>
+                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Sends magic link emails with one-click sign-in</li>
+                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Delivers OTP codes via email (Resend) or SMS (Twilio)</li>
                 <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Does not store users or sessions</li>
-                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Authenticated via project secret key</li>
+                <li className="flex items-start gap-2"><span className="text-emerald-400 mt-0.5">&#x2713;</span> Callback URL configured per project in the dashboard</li>
               </ul>
             </div>
           </div>
@@ -168,6 +169,15 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
       <section className="border-t border-gray-800/50">
         <div className="max-w-5xl mx-auto px-6 py-24">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            <div>
+              <div className="w-10 h-10 bg-emerald-600/10 rounded-xl flex items-center justify-center mb-4">
+                <LinkIcon size={20} className="text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Magic Links</h3>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                One-click sign-in via email. No codes to type. Set a callback URL per project and you're done.
+              </p>
+            </div>
             <div>
               <div className="w-10 h-10 bg-emerald-600/10 rounded-xl flex items-center justify-center mb-4">
                 <Mail size={20} className="text-emerald-400" />
@@ -213,15 +223,6 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
                 Pre-built auth routes and <code className="text-xs bg-gray-800 px-1 rounded">AuthSession</code> extractor. Mount and go.
               </p>
             </div>
-            <div>
-              <div className="w-10 h-10 bg-emerald-600/10 rounded-xl flex items-center justify-center mb-4">
-                <Package size={20} className="text-emerald-400" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">One crate</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                <code className="text-xs bg-gray-800 px-1 rounded">cargo add futureauth</code> — everything you need in a single dependency.
-              </p>
-            </div>
           </div>
         </div>
       </section>
@@ -234,8 +235,8 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
             {[
               { step: '1', title: 'Install the SDK', code: 'cargo add futureauth' },
               { step: '2', title: 'Get API keys', code: 'Sign in at future-auth.com' },
-              { step: '3', title: 'Initialize', code: 'FutureAuth::new(pool, config)' },
-              { step: '4', title: 'Ship it', code: 'send_otp() + verify_otp()' },
+              { step: '3', title: 'Set callback URL', code: 'Configure in the dashboard' },
+              { step: '4', title: 'Ship it', code: 'send_magic_link() / send_otp()' },
             ].map((s) => (
               <div key={s.step} className="text-center">
                 <div className="w-10 h-10 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-sm font-bold">
@@ -253,7 +254,7 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
       <section className="border-t border-gray-800/50">
         <div className="max-w-5xl mx-auto px-6 py-24 text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to drop passwords?</h2>
-          <p className="text-gray-400 mb-4">Free to start. Add OTP auth to your Rust app today.</p>
+          <p className="text-gray-400 mb-4">Free to start. Add magic link or OTP auth to your Rust app today.</p>
           <div className="bg-gray-900 border border-gray-800 rounded-xl inline-block px-6 py-3 mb-8">
             <code className="text-emerald-400 font-mono">$ cargo add futureauth</code>
           </div>
