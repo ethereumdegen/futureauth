@@ -1,0 +1,218 @@
+# FutureAuth
+
+> Passwordless authentication for Rust apps. Magic links and OTP codes via email (Resend) or SMS (Twilio). Users and sessions live in your own Postgres database.
+
+## What is FutureAuth?
+
+FutureAuth is a passwordless auth service with a Rust SDK (`futureauth` crate on crates.io). It provides magic link and OTP-based authentication for Rust/Axum web applications. The SDK handles all auth logic locally in your own Postgres database (users, sessions, verification codes). FutureAuth's server only delivers OTP codes and magic link emails via Resend or SMS via Twilio.
+
+FutureAuth never sees your user database. All auth data stays in your own Postgres.
+
+## Links
+
+- SDK crate: https://crates.io/crates/futureauth
+- SDK source: https://github.com/ethereumdegen/futureauth-sdk
+- Sample project: https://github.com/ethereumdegen/future-auth-sample-project
+- Dashboard: https://future-auth.com (sign in to get API keys)
+- API docs (OpenAPI): https://future-auth.com/api/docs
+
+## Quick Start
+
+### 1. Install the SDK
+
+```toml
+# Cargo.toml
+[dependencies]
+futureauth = { version = "0.4", features = ["axum-integration"] }
+```
+
+Or: `cargo add futureauth --features axum-integration`
+
+### 2. Get API Keys
+
+Sign in at https://future-auth.com, create a project, and save the secret key (`vx_sec_...`).
+
+### 3. Initialize in your Rust app
+
+```rust
+use futureauth::{FutureAuth, FutureAuthConfig};
+use sqlx::PgPool;
+use std::sync::Arc;
+
+let pool = PgPool::connect(&std::env::var("DATABASE_URL")?).await?;
+
+let auth = FutureAuth::new(pool.clone(), FutureAuthConfig {
+    api_url: "https://future-auth.com".to_string(),
+    secret_key: std::env::var("FUTUREAUTH_SECRET_KEY")?,
+    project_name: "My App".to_string(),
+    ..Default::default()
+});
+
+// Creates user, session, verification tables in YOUR database (idempotent)
+auth.ensure_tables().await?;
+```
+
+### 4. Mount Axum routes
+
+IMPORTANT: Use `.merge()`, NOT `.nest()`. The SDK's `auth_router()` already includes the `/api/auth/` prefix.
+
+```rust
+use futureauth::axum::{auth_router, AuthSession};
+
+#[derive(Clone)]
+struct AppState {
+    db: PgPool,
+    auth: Arc<FutureAuth>,
+}
+
+impl AsRef<Arc<FutureAuth>> for AppState {
+    fn as_ref(&self) -> &Arc<FutureAuth> { &self.auth }
+}
+
+let state = AppState { db: pool, auth: Arc::new(auth) };
+
+let app = Router::new()
+    .merge(futureauth::axum::auth_router(state.auth.clone()))
+    .route("/api/me", get(me_handler))
+    .with_state(state);
+
+async fn me_handler(auth: AuthSession) -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "id": auth.user.id, "email": auth.user.email }))
+}
+```
+
+### 5. Send magic link or OTP
+
+```rust
+use futureauth::OtpChannel;
+
+// Magic link (one-click email sign-in)
+auth.send_magic_link("user@example.com", "https://myapp.com/auth/verify").await?;
+
+// Email OTP
+auth.send_otp(OtpChannel::Email, "user@example.com").await?;
+
+// Phone OTP (SMS)
+auth.send_otp(OtpChannel::Phone, "+15551234567").await?;
+```
+
+### 6. Verify and create session
+
+```rust
+// Verify OTP
+let (user, session) = auth.verify_otp("user@example.com", "a1b2c3", Some("127.0.0.1"), Some("Mozilla/5.0")).await?;
+
+// Verify magic link
+let (user, session) = auth.verify_magic_link(&token, Some("127.0.0.1"), Some("Mozilla/5.0")).await?;
+
+// Set cookie: "futureauth_session" = session.token
+```
+
+### 7. Check sessions
+
+```rust
+match auth.get_session(&token).await? {
+    Some((user, session)) => { /* authenticated */ }
+    None => { /* invalid/expired */ }
+}
+```
+
+### 8. Sign out
+
+```rust
+auth.revoke_session(&token).await?;
+// or revoke all: auth.revoke_all_sessions(&user_id).await?;
+```
+
+## Auth Routes (provided by auth_router())
+
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| POST | `/api/auth/send-magic-link` | `{ "email": "user@example.com", "callback_url": "https://myapp.com/auth/verify" }` | Send magic link email |
+| POST | `/api/auth/verify-magic-link` | `{ "token": "..." }` | Verify magic link, create session |
+| POST | `/api/auth/send-otp` | `{ "email": "user@example.com" }` or `{ "phone": "+15551234567" }` | Send OTP code |
+| POST | `/api/auth/verify-otp` | `{ "email": "user@example.com", "code": "a1b2c3" }` | Verify OTP, create session |
+| GET | `/api/auth/session` | (reads cookie) | Get current user + session |
+| POST | `/api/auth/sign-out` | (reads cookie) | Revoke session |
+
+## Frontend Integration (React/TypeScript)
+
+Do NOT use `better-auth` or any third-party auth client. Call FutureAuth endpoints directly with `fetch()`.
+
+```typescript
+// Send OTP
+await fetch("/api/auth/send-otp", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({ email: "user@example.com" }),
+});
+
+// Verify OTP
+const res = await fetch("/api/auth/verify-otp", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({ email: "user@example.com", code: "a1b2c3" }),
+});
+
+// Check session
+const session = await fetch("/api/auth/session", { credentials: "include" }).then(r => r.json());
+
+// Sign out
+await fetch("/api/auth/sign-out", { method: "POST", credentials: "include" });
+```
+
+Always include `credentials: "include"` on every fetch call.
+
+## Configuration
+
+```rust
+FutureAuthConfig {
+    api_url: String,         // FutureAuth server URL (https://future-auth.com)
+    secret_key: String,      // Project secret key from dashboard (vx_sec_...)
+    project_name: String,    // Shown in OTP emails/SMS
+    session_ttl: Duration,   // Default: 30 days
+    otp_ttl: Duration,       // Default: 10 minutes
+    otp_length: usize,       // Default: 6 characters (alphanumeric)
+    cookie_name: String,     // Default: "futureauth_session"
+}
+```
+
+## Database Schema (created in YOUR database by the SDK)
+
+| Table | Key columns |
+|-------|-------------|
+| `"user"` | id, email, phone, name, email_verified, phone_verified, image, created_at, updated_at |
+| `session` | id, user_id, token, ip_address, user_agent, expires_at, created_at |
+| `verification` | id, identifier, code, expires_at, created_at |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | Your Postgres connection string |
+| `FUTUREAUTH_SECRET_KEY` | Project secret key from dashboard |
+| `FUTUREAUTH_API_URL` | Optional, defaults to `https://future-auth.com` |
+
+## Common Mistakes
+
+| Mistake | Fix |
+|---------|-----|
+| Using `.nest("/api/auth", auth_router())` | Use `.merge(auth_router())` - routes already have `/api/auth/` prefix |
+| Using `better-auth` client library | Use direct `fetch()` calls to FutureAuth endpoints |
+| Calling `/api/auth/get-session` | Correct path is `/api/auth/session` |
+| Missing `credentials: "include"` | Always include it on fetch calls for cookies to work |
+| Sending `{ channel, destination }` to send-otp | Send `{ email: "..." }` or `{ phone: "..." }` |
+| Sending `{ identifier, code }` to verify-otp | Send `{ email: "...", code: "..." }` |
+
+## Common Errors
+
+| Error | Fix |
+|-------|-----|
+| `OtpDeliveryFailed` | Check project has valid Resend/Twilio creds and correct secret key |
+| `InvalidOtp` | Wrong code or already used (codes are single-use) |
+| `OtpExpired` | Code expired (default 2 min), resend a new one |
+| `SessionNotFound` | Token invalid or expired (default 30 day TTL) |
+| 404 on auth routes | Wrong path, check the routes table above |
+| 405 on auth routes | Using `.nest()` instead of `.merge()` |

@@ -582,6 +582,7 @@ async fn serve_dashboard(
                 "ico" => "image/x-icon",
                 "json" => "application/json",
                 "woff" | "woff2" => "font/woff2",
+                "txt" | "md" => "text/plain; charset=utf-8",
                 _ => "application/octet-stream",
             };
             return (

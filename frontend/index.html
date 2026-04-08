@@ -3,10 +3,219 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FutureAuth</title>
+    <title>FutureAuth - Passwordless Authentication for Rust Apps</title>
+    <meta name="description" content="Add magic link and OTP authentication to any Rust/Axum app. Users and sessions live in your own Postgres database. Install with cargo add futureauth." />
+    <meta name="keywords" content="rust, authentication, passwordless, otp, magic link, axum, postgres, email auth, sms auth, rust auth, futureauth" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="FutureAuth - Passwordless Auth for Rust" />
+    <meta property="og:description" content="Magic link and OTP authentication for Rust/Axum apps. Users and sessions stay in your own Postgres. cargo add futureauth" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://future-auth.com" />
+
+    <!-- AI/Agent discovery -->
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable documentation" />
+    <link rel="alternate" type="application/json" href="/api/docs" title="OpenAPI specification" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Static content for crawlers and agents that don't execute JavaScript -->
+    <noscript>
+      <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; color: #1a1a1a; }
+        h1 { font-size: 2rem; }
+        h2 { font-size: 1.4rem; margin-top: 2rem; border-bottom: 1px solid #e5e5e5; padding-bottom: 0.5rem; }
+        h3 { font-size: 1.1rem; margin-top: 1.5rem; }
+        pre { background: #f5f5f5; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.9rem; }
+        code { background: #f5f5f5; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.9em; }
+        pre code { background: none; padding: 0; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        th, td { border: 1px solid #ddd; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.9rem; }
+        th { background: #f9f9f9; }
+        a { color: #059669; }
+        .badge { display: inline-block; background: #ecfdf5; color: #059669; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.85rem; font-weight: 500; margin-bottom: 1rem; }
+      </style>
+
+      <h1>FutureAuth</h1>
+      <p class="badge">Passwordless auth for Rust apps</p>
+
+      <p>
+        <strong>FutureAuth</strong> is an authentication service with a Rust SDK (<a href="https://crates.io/crates/futureauth">futureauth crate</a>).
+        It provides magic link and OTP-based passwordless authentication for Rust/Axum web applications.
+        The SDK handles all auth logic locally &mdash; users, sessions, and verification codes live in <strong>your own Postgres database</strong>.
+        FutureAuth's server only delivers OTP codes via email (Resend) or SMS (Twilio).
+      </p>
+
+      <p><strong>Links:</strong>
+        <a href="https://crates.io/crates/futureauth">crates.io</a> &middot;
+        <a href="https://github.com/ethereumdegen/futureauth-sdk">GitHub SDK</a> &middot;
+        <a href="https://github.com/ethereumdegen/future-auth-sample-project">Sample Project</a> &middot;
+        <a href="/llms.txt">llms.txt</a> &middot;
+        <a href="/api/docs">OpenAPI Docs</a>
+      </p>
+
+      <h2>Install</h2>
+      <pre><code>cargo add futureauth --features axum-integration</code></pre>
+      <p>Or in Cargo.toml:</p>
+      <pre><code>[dependencies]
+futureauth = { version = "0.4", features = ["axum-integration"] }</code></pre>
+
+      <h2>Quick Start</h2>
+
+      <h3>1. Initialize</h3>
+      <pre><code>use futureauth::{FutureAuth, FutureAuthConfig};
+use sqlx::PgPool;
+use std::sync::Arc;
+
+let pool = PgPool::connect(&amp;std::env::var("DATABASE_URL")?).await?;
+
+let auth = FutureAuth::new(pool.clone(), FutureAuthConfig {
+    api_url: "https://future-auth.com".to_string(),
+    secret_key: std::env::var("FUTUREAUTH_SECRET_KEY")?,
+    project_name: "My App".to_string(),
+    ..Default::default()
+});
+
+// Creates user, session, verification tables (idempotent)
+auth.ensure_tables().await?;</code></pre>
+
+      <h3>2. Mount Axum routes</h3>
+      <p><strong>IMPORTANT:</strong> Use <code>.merge()</code>, NOT <code>.nest()</code>. Routes already have <code>/api/auth/</code> prefix.</p>
+      <pre><code>use futureauth::axum::{auth_router, AuthSession};
+
+#[derive(Clone)]
+struct AppState {
+    db: PgPool,
+    auth: Arc&lt;FutureAuth&gt;,
+}
+
+impl AsRef&lt;Arc&lt;FutureAuth&gt;&gt; for AppState {
+    fn as_ref(&amp;self) -&gt; &amp;Arc&lt;FutureAuth&gt; { &amp;self.auth }
+}
+
+let state = AppState { db: pool, auth: Arc::new(auth) };
+
+let app = Router::new()
+    .merge(futureauth::axum::auth_router(state.auth.clone()))
+    .route("/api/me", get(me_handler))
+    .with_state(state);
+
+async fn me_handler(auth: AuthSession) -&gt; Json&lt;serde_json::Value&gt; {
+    Json(serde_json::json!({ "id": auth.user.id, "email": auth.user.email }))
+}</code></pre>
+
+      <h3>3. Send magic link or OTP</h3>
+      <pre><code>// Magic link (one-click email sign-in)
+auth.send_magic_link("user@example.com", "https://myapp.com/auth/verify").await?;
+
+// Email OTP
+auth.send_otp(OtpChannel::Email, "user@example.com").await?;
+
+// Phone OTP (SMS)
+auth.send_otp(OtpChannel::Phone, "+15551234567").await?;</code></pre>
+
+      <h3>4. Verify and create session</h3>
+      <pre><code>// Verify OTP
+let (user, session) = auth.verify_otp(
+    "user@example.com", "a1b2c3",
+    Some("127.0.0.1"), Some("Mozilla/5.0"),
+).await?;
+
+// Verify magic link
+let (user, session) = auth.verify_magic_link(
+    &amp;token, Some("127.0.0.1"), Some("Mozilla/5.0"),
+).await?;
+
+// Set cookie: name = "futureauth_session", value = session.token</code></pre>
+
+      <h3>5. Check sessions and sign out</h3>
+      <pre><code>// Check session
+match auth.get_session(&amp;token).await? {
+    Some((user, session)) =&gt; { /* authenticated */ }
+    None =&gt; { /* invalid/expired */ }
+}
+
+// Sign out
+auth.revoke_session(&amp;token).await?;</code></pre>
+
+      <h2>Auth Routes (provided by auth_router())</h2>
+      <table>
+        <tr><th>Method</th><th>Path</th><th>Body</th><th>Description</th></tr>
+        <tr><td>POST</td><td><code>/api/auth/send-magic-link</code></td><td><code>{ "email": "user@example.com", "callback_url": "https://myapp.com/auth/verify" }</code></td><td>Send magic link email</td></tr>
+        <tr><td>POST</td><td><code>/api/auth/verify-magic-link</code></td><td><code>{ "token": "..." }</code></td><td>Verify magic link, create session</td></tr>
+        <tr><td>POST</td><td><code>/api/auth/send-otp</code></td><td><code>{ "email": "..." }</code> or <code>{ "phone": "+1..." }</code></td><td>Send OTP code</td></tr>
+        <tr><td>POST</td><td><code>/api/auth/verify-otp</code></td><td><code>{ "email": "...", "code": "a1b2c3" }</code></td><td>Verify OTP, create session</td></tr>
+        <tr><td>GET</td><td><code>/api/auth/session</code></td><td>(reads cookie)</td><td>Get current user + session</td></tr>
+        <tr><td>POST</td><td><code>/api/auth/sign-out</code></td><td>(reads cookie)</td><td>Revoke session</td></tr>
+      </table>
+
+      <h2>Frontend Integration (React/TypeScript)</h2>
+      <p><strong>Do NOT use <code>better-auth</code> or any third-party auth client.</strong> Call FutureAuth endpoints directly:</p>
+      <pre><code>// Send OTP
+await fetch("/api/auth/send-otp", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({ email: "user@example.com" }),
+});
+
+// Verify OTP (sets session cookie automatically)
+const res = await fetch("/api/auth/verify-otp", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({ email: "user@example.com", code: "a1b2c3" }),
+});
+
+// Check session
+const session = await fetch("/api/auth/session", {
+  credentials: "include"
+}).then(r =&gt; r.json());
+
+// Sign out
+await fetch("/api/auth/sign-out", {
+  method: "POST",
+  credentials: "include"
+});</code></pre>
+      <p>Always include <code>credentials: "include"</code> on every fetch call.</p>
+
+      <h2>Configuration</h2>
+      <pre><code>FutureAuthConfig {
+    api_url: String,         // FutureAuth server URL (https://future-auth.com)
+    secret_key: String,      // Project secret key from dashboard (vx_sec_...)
+    project_name: String,    // Shown in OTP emails/SMS
+    session_ttl: Duration,   // Default: 30 days
+    otp_ttl: Duration,       // Default: 10 minutes
+    otp_length: usize,       // Default: 6 chars (alphanumeric)
+    cookie_name: String,     // Default: "futureauth_session"
+}</code></pre>
+
+      <h2>Environment Variables</h2>
+      <table>
+        <tr><th>Variable</th><th>Description</th></tr>
+        <tr><td><code>DATABASE_URL</code></td><td>Your Postgres connection string</td></tr>
+        <tr><td><code>FUTUREAUTH_SECRET_KEY</code></td><td>Project secret key from dashboard</td></tr>
+        <tr><td><code>FUTUREAUTH_API_URL</code></td><td>Optional, defaults to https://future-auth.com</td></tr>
+      </table>
+
+      <h2>Database Schema (created in YOUR database)</h2>
+      <table>
+        <tr><th>Table</th><th>Key columns</th></tr>
+        <tr><td><code>"user"</code></td><td>id, email, phone, name, email_verified, phone_verified, image, created_at, updated_at</td></tr>
+        <tr><td><code>session</code></td><td>id, user_id, token, ip_address, user_agent, expires_at, created_at</td></tr>
+        <tr><td><code>verification</code></td><td>id, identifier, code, expires_at, created_at</td></tr>
+      </table>
+
+      <h2>Common Mistakes</h2>
+      <table>
+        <tr><th>Mistake</th><th>Fix</th></tr>
+        <tr><td>Using <code>.nest("/api/auth", auth_router())</code></td><td>Use <code>.merge(auth_router())</code> &mdash; routes already have /api/auth/ prefix</td></tr>
+        <tr><td>Using <code>better-auth</code> client</td><td>Use direct <code>fetch()</code> calls</td></tr>
+        <tr><td>Calling <code>/api/auth/get-session</code></td><td>Correct path: <code>/api/auth/session</code></td></tr>
+        <tr><td>Missing <code>credentials: "include"</code></td><td>Always include it for cookies to work</td></tr>
+      </table>
+    </noscript>
   </body>
 </html>
