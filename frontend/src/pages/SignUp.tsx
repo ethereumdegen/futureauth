@@ -1,47 +1,42 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
-import { sendOtp, verifyOtp } from '../lib/auth-client'
-import { Shield } from 'lucide-react'
+import { Link } from 'react-router'
+import { sendMagicLink } from '../lib/auth-client'
+import { Shield, Mail } from 'lucide-react'
 
 export default function SignUp() {
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
-  const [step, setStep] = useState<'email' | 'code'>('email')
+  const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleSendCode(e: React.FormEvent) {
+  async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
     try {
-      const res = await sendOtp(email)
+      const res = await sendMagicLink(email)
       if (res.error) {
         setError(res.error)
       } else {
-        setStep('code')
+        setSent(true)
       }
     } catch {
-      setError('Failed to send code')
+      setError('Failed to send sign-in link')
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleVerify(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleResend() {
     setLoading(true)
     setError('')
     try {
-      const res = await verifyOtp(email, code)
+      const res = await sendMagicLink(email)
       if (res.error) {
         setError(res.error)
-      } else {
-        navigate('/')
       }
     } catch {
-      setError('Verification failed')
+      setError('Failed to resend link')
     } finally {
       setLoading(false)
     }
@@ -65,8 +60,8 @@ export default function SignUp() {
         )}
 
         <div className="bg-white border border-gray-200 rounded-xl p-6">
-          {step === 'email' ? (
-            <form onSubmit={handleSendCode} className="space-y-4">
+          {!sent ? (
+            <form onSubmit={handleSend} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
                 <input
@@ -83,41 +78,37 @@ export default function SignUp() {
                 disabled={loading}
                 className="w-full bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white py-2.5 rounded-lg font-medium transition-colors"
               >
-                {loading ? 'Sending...' : 'Send Code'}
+                {loading ? 'Sending...' : 'Send Sign-In Link'}
               </button>
             </form>
           ) : (
-            <form onSubmit={handleVerify} className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Code sent to <span className="font-medium text-gray-900">{email}</span>
-              </p>
+            <div className="text-center space-y-4">
+              <Mail size={32} className="text-emerald-600 mx-auto" />
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Verification Code</label>
-                <input
-                  type="text"
-                  required
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="a1b2c3"
-                  autoFocus
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-center text-lg tracking-widest font-mono"
-                />
+                <p className="text-sm text-gray-600">
+                  We sent a sign-in link to
+                </p>
+                <p className="font-medium text-gray-900">{email}</p>
               </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white py-2.5 rounded-lg font-medium transition-colors"
-              >
-                {loading ? 'Verifying...' : 'Verify & Create Account'}
-              </button>
+              <p className="text-xs text-gray-400">Check your inbox and click the link to sign in. The link expires in 15 minutes.</p>
               <button
                 type="button"
-                onClick={() => { setStep('email'); setCode(''); setError(''); }}
-                className="w-full text-gray-500 hover:text-gray-700 text-sm py-1 transition-colors"
+                onClick={handleResend}
+                disabled={loading}
+                className="text-emerald-600 hover:text-emerald-700 text-sm font-medium disabled:opacity-40"
               >
-                Use a different email
+                {loading ? 'Resending...' : 'Resend link'}
               </button>
-            </form>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => { setSent(false); setError(''); }}
+                  className="text-gray-500 hover:text-gray-700 text-sm transition-colors"
+                >
+                  Use a different email
+                </button>
+              </div>
+            </div>
           )}
         </div>
 

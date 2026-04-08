@@ -32,6 +32,26 @@ export async function verifyOtp(email: string, code: string): Promise<{ user?: A
   return res.json()
 }
 
+export async function sendMagicLink(email: string): Promise<{ ok?: boolean; error?: string }> {
+  const res = await fetch(`${BASE}/send-magic-link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  })
+  return res.json()
+}
+
+export async function verifyMagicLink(token: string): Promise<{ user?: AuthUser; error?: string }> {
+  const res = await fetch(`${BASE}/verify-magic-link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ token }),
+  })
+  return res.json()
+}
+
 export async function getSession(): Promise<SessionData | null> {
   try {
     const res = await fetch(`${BASE}/session`, { credentials: 'include' })

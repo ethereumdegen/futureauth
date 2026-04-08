@@ -10,6 +10,7 @@ pub struct Project {
     #[serde(skip_serializing)]
     pub secret_key_hash: String,
     pub otp_mode: String,
+    pub magic_link_callback_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -70,11 +71,13 @@ impl Project {
         user_id: &str,
         name: Option<&str>,
         otp_mode: Option<&str>,
+        magic_link_callback_url: Option<&str>,
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as::<_, Project>(
             "UPDATE project SET
                name = COALESCE($3, name),
                otp_mode = COALESCE($4, otp_mode),
+               magic_link_callback_url = COALESCE($5, magic_link_callback_url),
                updated_at = NOW()
              WHERE id = $1 AND user_id = $2
              RETURNING *",
@@ -83,6 +86,7 @@ impl Project {
         .bind(user_id)
         .bind(name)
         .bind(otp_mode)
+        .bind(magic_link_callback_url)
         .fetch_optional(pool)
         .await
     }

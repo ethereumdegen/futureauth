@@ -102,6 +102,8 @@ async fn main() {
         // Dashboard auth (dogfoods SDK for verify/session/signout, custom send for direct email)
         .route("/api/auth/send-otp", post(routes::auth::send_otp))
         .route("/api/auth/verify-otp", post(routes::auth::verify_otp))
+        .route("/api/auth/send-magic-link", post(routes::auth::send_magic_link))
+        .route("/api/auth/verify-magic-link", post(routes::auth::verify_magic_link))
         .route("/api/auth/session", get(routes::auth::get_session))
         .route("/api/auth/sign-out", post(routes::auth::sign_out))
         // Dashboard API (requires auth)
@@ -147,6 +149,11 @@ async fn run_migrations(pool: &PgPool) {
     let drop_pub_key = include_str!("../migrations/002_drop_publishable_key.sql");
     if let Err(e) = sqlx::raw_sql(drop_pub_key).execute(pool).await {
         tracing::error!("Migration 002 failed: {e}");
+        std::process::exit(1);
+    }
+    let callback_url = include_str!("../migrations/004_project_callback_url.sql");
+    if let Err(e) = sqlx::raw_sql(callback_url).execute(pool).await {
+        tracing::error!("Migration 004 failed: {e}");
         std::process::exit(1);
     }
     tracing::info!("Migrations complete");

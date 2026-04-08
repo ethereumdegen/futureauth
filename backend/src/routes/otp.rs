@@ -112,9 +112,55 @@ pub async fn send(
                 }
             }
         }
+        "magic_link" => {
+            let api_key = match &state.config.resend_api_key {
+                Some(k) => k,
+                None => {
+                    return (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        Json(serde_json::json!({ "error": "Email delivery not configured" })),
+                    )
+                        .into_response()
+                }
+            };
+
+            let callback_url = match &project_auth.project.magic_link_callback_url {
+                Some(url) => url,
+                None => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({ "error": "magic_link_callback_url not configured for this project" })),
+                    )
+                        .into_response()
+                }
+            };
+
+            let link = format!("{}?token={}", callback_url, body.code);
+
+            match crate::services::email::send_magic_link_email(
+                &state.http,
+                api_key,
+                &state.config.resend_from_email,
+                &body.destination,
+                &link,
+                project_name,
+            )
+            .await
+            {
+                Ok(()) => (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response(),
+                Err(e) => {
+                    tracing::error!("Magic link email delivery failed: {e}");
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({ "error": "Failed to send magic link email" })),
+                    )
+                        .into_response()
+                }
+            }
+        }
         _ => (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "channel must be 'email' or 'sms'" })),
+            Json(serde_json::json!({ "error": "channel must be 'email', 'sms', or 'magic_link'" })),
         )
             .into_response(),
     }

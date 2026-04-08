@@ -22,6 +22,7 @@ pub struct CreateProjectRequest {
 pub struct UpdateProjectRequest {
     pub name: Option<String>,
     pub otp_mode: Option<String>,
+    pub magic_link_callback_url: Option<String>,
 }
 
 pub async fn list(
@@ -99,6 +100,7 @@ pub async fn update(
         &auth.user_id,
         body.name.as_deref(),
         body.otp_mode.as_deref(),
+        body.magic_link_callback_url.as_deref(),
     )
     .await?
     .ok_or(AppError::NotFound)?;

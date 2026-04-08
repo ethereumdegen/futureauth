@@ -209,6 +209,172 @@ pub async fn verify_otp(
     }
 }
 
+#[derive(Deserialize)]
+pub struct SendMagicLinkRequest {
+    pub email: String,
+}
+
+#[derive(Deserialize)]
+pub struct VerifyMagicLinkRequest {
+    pub token: String,
+}
+
+/// Send magic link — stores token in SDK's verification table, sends email directly.
+pub async fn send_magic_link(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<SendMagicLinkRequest>,
+) -> impl IntoResponse {
+    if !is_valid_email(&body.email) {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid email address" }))).into_response();
+    }
+
+    // Rate limit by IP
+    let ip = extract_client_ip(&headers);
+    if !state.otp_send_limiter.check(&ip).await {
+        return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many requests, try again later" }))).into_response();
+    }
+
+    // Rate limit by email
+    let email_key = format!("dashboard:{}", body.email);
+    if !state.otp_send_email_limiter.check(&email_key).await {
+        return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many requests for this email, try again later" }))).into_response();
+    }
+
+    // Generate 48-char magic link token
+    let token = nanoid::nanoid!(48);
+
+    // Store in verification table (kind='magic_link', 15min TTL)
+    let _ = sqlx::query("DELETE FROM verification WHERE identifier = $1 AND kind = 'magic_link'")
+        .bind(&body.email)
+        .execute(&state.db)
+        .await;
+
+    let id = nanoid::nanoid!();
+    let expires_at = chrono::Utc::now() + chrono::Duration::minutes(15);
+    if let Err(e) = sqlx::query(
+        "INSERT INTO verification (id, identifier, code, expires_at, kind) VALUES ($1, $2, $3, $4, 'magic_link')",
+    )
+    .bind(&id)
+    .bind(&body.email)
+    .bind(&token)
+    .bind(expires_at)
+    .execute(&state.db)
+    .await
+    {
+        tracing::error!("Failed to store magic link verification: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Failed to send magic link" }))).into_response();
+    }
+
+    // Build callback URL and send email
+    let callback_url = format!("{}/auth/verify", state.config.cors_origin);
+    let link = format!("{}?token={}", callback_url, token);
+
+    let send_success;
+    if let Some(api_key) = &state.config.resend_api_key {
+        if let Err(e) = crate::services::email::send_magic_link_email(
+            &state.http,
+            api_key,
+            &state.config.resend_from_email,
+            &body.email,
+            &link,
+            "FutureAuth",
+        )
+        .await
+        {
+            tracing::error!("Failed to send magic link email: {e}");
+            send_success = false;
+        } else {
+            send_success = true;
+        }
+    } else {
+        tracing::debug!("[FutureAuth] Dashboard magic link for {}: {}", body.email, link);
+        send_success = true;
+    }
+
+    // Log the attempt
+    let _ = sqlx::query(
+        "INSERT INTO otp_log (id, event, email, ip, success) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(nanoid::nanoid!())
+    .bind("send_magic_link")
+    .bind(&body.email)
+    .bind(&ip)
+    .bind(send_success)
+    .execute(&state.db)
+    .await;
+
+    if send_success {
+        (StatusCode::OK, Json(serde_json::json!({ "ok": true }))).into_response()
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Failed to send magic link" }))).into_response()
+    }
+}
+
+/// Verify magic link — delegated to the SDK. Creates user + session in SDK tables.
+pub async fn verify_magic_link(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<VerifyMagicLinkRequest>,
+) -> impl IntoResponse {
+    let client_ip = extract_client_ip(&headers);
+
+    // Rate limit by IP
+    if !state.otp_verify_limiter.check(&client_ip).await {
+        return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many attempts, try again later" }))).into_response();
+    }
+
+    let ip = headers
+        .get("x-forwarded-for")
+        .or_else(|| headers.get("x-real-ip"))
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
+
+    let ua = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    let result = state.auth.verify_magic_link(&body.token, ip.as_deref(), ua.as_deref()).await;
+    let success = result.is_ok();
+
+    // Log the verify attempt
+    let _ = sqlx::query(
+        "INSERT INTO otp_log (id, event, email, ip, success) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(nanoid::nanoid!())
+    .bind("verify_magic_link")
+    .bind("")
+    .bind(&client_ip)
+    .bind(success)
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok((user, session)) => {
+            let cookie_name = &state.auth.config.cookie_name;
+            let cookie = format!(
+                "{cookie_name}={}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age={}",
+                session.token,
+                state.auth.config.session_ttl.as_secs()
+            );
+            (
+                StatusCode::OK,
+                [("set-cookie", cookie)],
+                Json(serde_json::json!({ "user": user })),
+            )
+                .into_response()
+        }
+        Err(futureauth::FutureAuthError::InvalidMagicLink | futureauth::FutureAuthError::MagicLinkExpired) => {
+            (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid or expired magic link" }))).into_response()
+        }
+        Err(e) => {
+            tracing::error!("Magic link verification error: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Verification failed" }))).into_response()
+        }
+    }
+}
+
 /// Get session — fully delegated to the SDK.
 pub async fn get_session(
     State(state): State<AppState>,
