@@ -47,8 +47,8 @@ export default function Landing() {
             </span>
           </h1>
           <p className="text-xl text-gray-400 leading-relaxed mb-8">
-            Add magic link or OTP authentication to any Rust backend. Users and sessions live in your own Postgres.
-            FutureAuth delivers the emails and SMS.
+            Install magic link logins to any Rust backend. Users and sessions live in your own database.
+            FutureAuth delivers the emails.
           </p>
 
           {/* Install command */}
