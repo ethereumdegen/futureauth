@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#020617"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.15" cy="0.2" r="0.6">
+      <stop offset="0" stop-color="#059669" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#059669" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- Logo badge -->
+  <g transform="translate(80, 90)">
+    <rect width="68" height="68" rx="16" fill="#059669"/>
+    <path d="M34 14 L51 20 V34 C51 44 44 52 34 55 C24 52 17 44 17 34 V20 Z" fill="none" stroke="white" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M25 34 L32 41 L43 28" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="88" y="45" fill="white" font-size="36" font-weight="700">FutureAuth</text>
+  </g>
+
+  <!-- Headline -->
+  <text x="80" y="270" fill="white" font-size="88" font-weight="800">Passwordless auth</text>
+  <text x="80" y="370" fill="url(#accent)" font-size="88" font-weight="800">for Rust apps</text>
+
+  <!-- Subtitle -->
+  <text x="80" y="445" fill="#94a3b8" font-size="32" font-weight="400">Magic links &amp; OTP. Users in your own Postgres.</text>
+
+  <!-- Install command pill -->
+  <g transform="translate(80, 490)">
+    <rect width="520" height="72" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+    <text x="28" y="48" fill="#34d399" font-size="28" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-weight="500">$ cargo add futureauth</text>
+  </g>
+
+  <!-- Footer line -->
+  <text x="80" y="605" fill="#475569" font-size="22">future-auth.com &#183; crates.io/crates/futureauth</text>
+</svg>

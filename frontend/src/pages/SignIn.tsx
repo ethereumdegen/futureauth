@@ -1,8 +1,15 @@
 import { useState } from 'react'
 import { sendMagicLink, type AuthUser } from '../lib/auth-client'
 import { Shield, Mail } from 'lucide-react'
+import { usePageSEO } from '../lib/seo'
 
 export default function SignIn({ onAuth: _onAuth }: { onAuth: (user: AuthUser) => void }) {
+  usePageSEO({
+    pageTitle: 'Sign in',
+    description: 'Sign in to FutureAuth with a magic link to manage your projects and API keys.',
+    canonicalPath: '/sign-in',
+    noindex: true,
+  })
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)

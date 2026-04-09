@@ -2,20 +2,108 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FutureAuth - Passwordless Authentication for Rust Apps</title>
-    <meta name="description" content="Add magic link and OTP authentication to any Rust/Axum app. Users and sessions live in your own Postgres database. Install with cargo add futureauth." />
-    <meta name="keywords" content="rust, authentication, passwordless, otp, magic link, axum, postgres, email auth, sms auth, rust auth, futureauth" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#059669" />
+
+    <title>FutureAuth — Passwordless Magic Link &amp; OTP Auth for Rust / Axum</title>
+    <meta name="description" content="FutureAuth adds magic link and OTP (email + SMS) passwordless authentication to any Rust or Axum app. Users and sessions live in your own Postgres. Install with cargo add futureauth." />
+    <meta name="keywords" content="rust authentication, rust auth library, axum authentication, passwordless auth rust, magic link rust, otp rust, email otp, sms otp, rust sdk auth, postgres auth, futureauth, rust auth crate, rust login" />
+    <meta name="author" content="FutureAuth" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <link rel="canonical" href="https://future-auth.com/" />
+
+    <!-- Favicons / PWA -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+    <link rel="manifest" href="/site.webmanifest" />
 
     <!-- Open Graph -->
-    <meta property="og:title" content="FutureAuth - Passwordless Auth for Rust" />
-    <meta property="og:description" content="Magic link and OTP authentication for Rust/Axum apps. Users and sessions stay in your own Postgres. cargo add futureauth" />
+    <meta property="og:site_name" content="FutureAuth" />
+    <meta property="og:title" content="FutureAuth — Passwordless Magic Link &amp; OTP Auth for Rust" />
+    <meta property="og:description" content="Add magic link and OTP authentication to any Rust/Axum app. Users and sessions live in your own Postgres. cargo add futureauth" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://future-auth.com" />
+    <meta property="og:url" content="https://future-auth.com/" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://future-auth.com/og-image.svg" />
+    <meta property="og:image:type" content="image/svg+xml" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FutureAuth — Passwordless auth for Rust apps. cargo add futureauth" />
 
-    <!-- AI/Agent discovery -->
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FutureAuth — Passwordless Auth for Rust" />
+    <meta name="twitter:description" content="Magic link and OTP auth for Rust/Axum apps. Users and sessions stay in your own Postgres. cargo add futureauth" />
+    <meta name="twitter:image" content="https://future-auth.com/og-image.svg" />
+    <meta name="twitter:image:alt" content="FutureAuth — Passwordless auth for Rust apps" />
+
+    <!-- Performance hints -->
+    <link rel="preconnect" href="https://crates.io" crossorigin />
+    <link rel="preconnect" href="https://github.com" crossorigin />
+    <link rel="dns-prefetch" href="https://crates.io" />
+    <link rel="dns-prefetch" href="https://github.com" />
+
+    <!-- AI / Agent / machine discovery -->
     <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable documentation" />
     <link rel="alternate" type="application/json" href="/api/docs" title="OpenAPI specification" />
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+
+    <!-- Structured data: SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "FutureAuth",
+      "alternateName": "futureauth",
+      "description": "Passwordless magic link and OTP authentication for Rust/Axum apps. Users and sessions live in your own Postgres database.",
+      "url": "https://future-auth.com/",
+      "image": "https://future-auth.com/og-image.svg",
+      "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "Authentication",
+      "operatingSystem": "Linux, macOS, Windows",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "programmingLanguage": "Rust",
+      "softwareRequirements": "Rust, Axum, PostgreSQL",
+      "downloadUrl": "https://crates.io/crates/futureauth",
+      "codeRepository": "https://github.com/ethereumdegen/futureauth-sdk",
+      "keywords": "rust, authentication, passwordless, magic link, otp, axum, postgres",
+      "author": {
+        "@type": "Organization",
+        "name": "FutureAuth",
+        "url": "https://future-auth.com/"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "FutureAuth",
+        "url": "https://future-auth.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://future-auth.com/apple-touch-icon.svg"
+        }
+      }
+    }
+    </script>
+
+    <!-- Structured data: Organization + WebSite (sitelinks search) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "FutureAuth",
+      "url": "https://future-auth.com/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://future-auth.com/docs?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

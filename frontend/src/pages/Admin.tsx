@@ -11,8 +11,10 @@ import {
   type AdminConfig,
   type AdminLogEntry,
 } from '../lib/api'
+import { usePageSEO } from '../lib/seo'
 
 export default function Admin() {
+  usePageSEO({ pageTitle: 'Admin', canonicalPath: '/admin', noindex: true })
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [projects, setProjects] = useState<AdminProject[]>([])
   const [config, setConfig] = useState<AdminConfig | null>(null)

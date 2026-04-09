@@ -1,8 +1,15 @@
 import { Link } from 'react-router'
 import { ArrowLeft, Shield, Copy, Check, BookOpen, Terminal, Database, Zap, Package, Rocket } from 'lucide-react'
 import { useState } from 'react'
+import { usePageSEO } from '../lib/seo'
 
 export default function Docs() {
+  usePageSEO({
+    pageTitle: 'Docs: Rust Auth SDK (Magic Link + OTP)',
+    description:
+      'FutureAuth documentation: install the futureauth crate, mount Axum auth routes, send magic links, verify OTP codes, and manage sessions in your own Postgres.',
+    canonicalPath: '/docs',
+  })
   const [copied, setCopied] = useState('')
   const futureauthUrl = window.location.origin
 

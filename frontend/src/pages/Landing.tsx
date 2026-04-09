@@ -1,8 +1,16 @@
 import { Link } from 'react-router'
 import { Mail, Phone, ArrowRight, Shield, Zap, Database, Terminal, BookOpen, Github, Package, Link as LinkIcon, LogOut } from 'lucide-react'
 import { signOut, type AuthUser } from '../lib/auth-client'
+import { usePageSEO } from '../lib/seo'
 
 export default function Landing({ user, onSignOut }: { user?: AuthUser | null; onSignOut?: () => void }) {
+  usePageSEO({
+    title: 'FutureAuth — Passwordless Magic Link & OTP Auth for Rust / Axum',
+    description:
+      'FutureAuth adds magic link and OTP (email + SMS) passwordless authentication to any Rust or Axum app. Users and sessions live in your own Postgres. Install with cargo add futureauth.',
+    canonicalPath: '/',
+  })
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <nav className="border-b border-gray-800/50 sticky top-0 bg-gray-950/70 backdrop-blur-xl z-10">
@@ -49,6 +57,7 @@ export default function Landing({ user, onSignOut }: { user?: AuthUser | null; o
         </div>
       </nav>
 
+      <main>
       {/* Hero */}
       <section className="max-w-5xl mx-auto px-6 pt-28 pb-16">
         <div className="max-w-3xl">
@@ -60,12 +69,13 @@ export default function Landing({ user, onSignOut }: { user?: AuthUser | null; o
             Passwordless auth
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
-              for Rust apps
+              for Rust &amp; Axum apps
             </span>
           </h1>
           <p className="text-xl text-gray-400 leading-relaxed mb-8">
-            Install magic link logins to any Rust backend. Users and sessions live in your own database.
-            FutureAuth delivers the emails.
+            Add magic link and OTP sign-in to any Rust backend in minutes. Users and
+            sessions live in your own Postgres database &mdash; zero vendor lock-in.
+            FutureAuth delivers the emails and SMS.
           </p>
 
           {/* Install command */}
@@ -267,6 +277,42 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
         </div>
       </section>
 
+      {/* FAQ */}
+      <section id="faq" className="border-t border-gray-800/50">
+        <div className="max-w-4xl mx-auto px-6 py-24">
+          <h2 className="text-3xl font-bold mb-3 text-center">Frequently asked questions</h2>
+          <p className="text-gray-500 text-center mb-12">Everything developers ask about adding passwordless auth to a Rust app.</p>
+
+          <div className="space-y-4">
+            {FAQS.map((f) => (
+              <details key={f.q} className="group bg-gray-900/40 border border-gray-800/50 rounded-xl px-6 py-5 open:bg-gray-900/60">
+                <summary className="cursor-pointer list-none flex items-start justify-between gap-4">
+                  <h3 className="text-lg font-semibold text-white">{f.q}</h3>
+                  <span className="text-emerald-400 text-xl leading-none group-open:rotate-45 transition-transform">+</span>
+                </summary>
+                <p className="mt-4 text-gray-400 leading-relaxed text-sm">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+
+        {/* FAQPage structured data for rich results */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'FAQPage',
+              mainEntity: FAQS.map((f) => ({
+                '@type': 'Question',
+                name: f.q,
+                acceptedAnswer: { '@type': 'Answer', text: f.a },
+              })),
+            }),
+          }}
+        />
+      </section>
+
       {/* CTA */}
       <section className="border-t border-gray-800/50">
         <div className="max-w-5xl mx-auto px-6 py-24 text-center">
@@ -295,6 +341,8 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
         </div>
       </section>
 
+      </main>
+
       <footer className="border-t border-gray-800/50">
         <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="text-sm text-gray-600">FutureAuth — Passwordless auth for Rust</span>
@@ -309,3 +357,38 @@ async fn me(auth: AuthSession) -> Json<serde_json::Value> {
     </div>
   )
 }
+
+const FAQS: { q: string; a: string }[] = [
+  {
+    q: 'How do I add authentication to a Rust or Axum app?',
+    a: 'Install the futureauth crate with `cargo add futureauth --features axum-integration`, create a project at future-auth.com to get a secret key, call `FutureAuth::new()` with your Postgres pool, run `ensure_tables().await?` once, and merge the pre-built `auth_router()` into your Axum `Router`. That gives you working magic link and OTP endpoints at `/api/auth/*` in a few minutes.',
+  },
+  {
+    q: 'What is a magic link and how does it work?',
+    a: 'A magic link is a one-click sign-in URL emailed to the user. They click it, FutureAuth verifies the signed token, your backend creates a session in your own Postgres, and the user is signed in. No passwords, no copying codes, no third-party accounts required.',
+  },
+  {
+    q: 'Where are users and sessions stored?',
+    a: 'Users, sessions, and verification codes all live in your own Postgres database in standard tables (`user`, `session`, `verification`) that FutureAuth creates for you via `ensure_tables()`. FutureAuth’s server never stores your user data — it only delivers emails and SMS messages.',
+  },
+  {
+    q: 'How is this different from Auth0, Clerk, or Supabase Auth?',
+    a: 'FutureAuth is a lightweight Rust-first SDK. Your user table lives in your own database, so there is zero vendor lock-in and no data-residency headaches. You keep full ownership of users, sessions and any custom columns, and you never pay per-MAU for data you already own. FutureAuth only charges for OTP and magic link deliveries.',
+  },
+  {
+    q: 'Can I send OTP codes by SMS?',
+    a: 'Yes. FutureAuth sends email OTP codes via Resend and SMS OTP codes via Twilio. Call `auth.send_otp(OtpChannel::Email, ...)` or `auth.send_otp(OtpChannel::Phone, ...)` from your Rust backend.',
+  },
+  {
+    q: 'Does FutureAuth work with frameworks other than Axum?',
+    a: 'The core SDK is framework-agnostic — all core methods like `send_magic_link`, `send_otp`, `verify_otp`, `get_session`, and `revoke_session` work from any Rust web framework (Actix, Rocket, Warp, Tide). The `axum-integration` feature just adds a pre-wired `auth_router()` and `AuthSession` extractor so you can drop it straight into an Axum app.',
+  },
+  {
+    q: 'Is FutureAuth secure? How are sessions protected?',
+    a: 'Sessions use opaque random tokens stored server-side in your Postgres with IP address, user agent and expiration. Magic link tokens are single-use and short-lived. OTP codes expire after 10 minutes by default. You can call `revoke_session()` any time to force a sign-out.',
+  },
+  {
+    q: 'How much does FutureAuth cost?',
+    a: 'Free to start. You only pay for OTP and magic link email/SMS deliveries beyond the free tier. Users, sessions and verification data live in your own database, so there is no per-user (MAU) fee.',
+  },
+]

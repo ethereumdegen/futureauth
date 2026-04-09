@@ -1,0 +1,33 @@
+User-agent: *
+Allow: /
+Allow: /docs
+Allow: /llms.txt
+
+# Authenticated app routes — not useful in the index
+Disallow: /dashboard
+Disallow: /projects/
+Disallow: /settings
+Disallow: /admin
+Disallow: /sign-in
+Disallow: /auth/verify
+
+# Let all major AI/agent crawlers read the site
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://future-auth.com/sitemap.xml

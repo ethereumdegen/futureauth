@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router'
 import { verifyMagicLink, type AuthUser } from '../lib/auth-client'
 import { Shield, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { usePageSEO } from '../lib/seo'
 
 export default function AuthVerify({ onAuth }: { onAuth: (user: AuthUser) => void }) {
+  usePageSEO({ pageTitle: 'Verifying sign-in', canonicalPath: '/auth/verify', noindex: true })
   const [searchParams] = useSearchParams()
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
   const [error, setError] = useState('')

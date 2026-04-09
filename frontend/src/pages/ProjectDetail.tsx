@@ -3,10 +3,12 @@ import { useParams, Link, useLocation } from 'react-router'
 import { getProject, deleteProject, updateProject, regenerateProjectKeys, getProjectLogs, getProjectBilling, createCheckoutSession, createPortalSession, type Project, type OtpLogEntry, type BillingInfo } from '../lib/api'
 import { ArrowLeft, Copy, Check, Phone, Mail, Trash2, Code, Pencil, RefreshCw, Home, BarChart3, ChevronDown, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router'
+import { usePageSEO } from '../lib/seo'
 
 type Tab = 'home' | 'analytics'
 
 export default function ProjectDetail() {
+  usePageSEO({ pageTitle: 'Project', noindex: true })
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()

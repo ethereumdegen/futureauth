@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router'
 import { createProject, getConfig, type OtpMode } from '../lib/api'
 import { ArrowLeft, Phone, Mail } from 'lucide-react'
+import { usePageSEO } from '../lib/seo'
 
 export default function NewProject() {
+  usePageSEO({ pageTitle: 'New project', canonicalPath: '/projects/new', noindex: true })
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [otpMode, setOtpMode] = useState<OtpMode>('email')

@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router'
 import { signOut } from '../lib/auth-client'
 import { listApiKeys, createApiKey, deleteApiKey, type ApiKey } from '../lib/api'
 import { ArrowLeft, Plus, Trash2, Copy, Check, Key, LogOut, Shield } from 'lucide-react'
+import { usePageSEO } from '../lib/seo'
 
 export default function Settings() {
+  usePageSEO({ pageTitle: 'Settings', canonicalPath: '/settings', noindex: true })
   const navigate = useNavigate()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [loading, setLoading] = useState(true)

@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router'
 import { signOut, type AuthUser } from '../lib/auth-client'
 import { listProjects, type Project } from '../lib/api'
 import { Phone, Plus, LogOut, ChevronRight, Mail, Key, BookOpen, Shield } from 'lucide-react'
+import { usePageSEO } from '../lib/seo'
 
 export default function Dashboard({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
+  usePageSEO({ pageTitle: 'Dashboard', canonicalPath: '/dashboard', noindex: true })
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)

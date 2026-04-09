@@ -569,19 +569,36 @@ async fn serve_dashboard(
         if let Ok(content) = tokio::fs::read(&canonical).await {
             let ext = path.rsplit('.').next().unwrap_or("");
             let content_type = match ext {
-                "js" => "application/javascript",
-                "css" => "text/css",
+                "js" | "mjs" => "application/javascript; charset=utf-8",
+                "css" => "text/css; charset=utf-8",
                 "svg" => "image/svg+xml",
                 "png" => "image/png",
+                "jpg" | "jpeg" => "image/jpeg",
+                "webp" => "image/webp",
+                "gif" => "image/gif",
                 "ico" => "image/x-icon",
-                "json" => "application/json",
-                "woff" | "woff2" => "font/woff2",
+                "json" | "webmanifest" => "application/json; charset=utf-8",
+                "xml" => "application/xml; charset=utf-8",
+                "woff" => "font/woff",
+                "woff2" => "font/woff2",
+                "ttf" => "font/ttf",
+                "otf" => "font/otf",
                 "txt" | "md" => "text/plain; charset=utf-8",
                 _ => "application/octet-stream",
             };
+            // Hashed Vite build artifacts (under /assets/) are immutable; everything
+            // else gets a short cache so SEO files like robots.txt/sitemap.xml stay fresh.
+            let cache_control = if path.starts_with("/assets/") {
+                "public, max-age=31536000, immutable"
+            } else {
+                "public, max-age=3600, must-revalidate"
+            };
             return (
                 StatusCode::OK,
-                [(axum::http::header::CONTENT_TYPE, content_type)],
+                [
+                    (axum::http::header::CONTENT_TYPE, content_type),
+                    (axum::http::header::CACHE_CONTROL, cache_control),
+                ],
                 content,
             ).into_response();
         }
