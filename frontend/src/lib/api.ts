@@ -128,6 +128,35 @@ export interface AdminProject {
   owner_email: string
   plan: string
   usage_today: number
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+  has_subscription: boolean
+  created_at: string
+}
+
+export interface AdminLogEntry {
+  id: string
+  event: string
+  email: string
+  ip: string | null
+  success: boolean
+  created_at: string
+  project_id: string | null
+  project_name: string
+}
+
+export interface AdminLogsResponse {
+  logs: AdminLogEntry[]
+  total: number
+}
+
+export interface AdminLogsFilters {
+  limit?: number
+  offset?: number
+  project_id?: string
+  event?: string
+  success?: boolean
+  search?: string
 }
 
 export interface AdminConfig {
@@ -143,3 +172,15 @@ export interface AdminConfig {
 export const getAdminOverview = () => apiFetch<AdminOverview>('/admin/overview')
 export const getAdminProjects = () => apiFetch<{ projects: AdminProject[] }>('/admin/projects')
 export const getAdminConfig = () => apiFetch<AdminConfig>('/admin/config')
+
+export const getAdminLogs = (filters: AdminLogsFilters = {}) => {
+  const params = new URLSearchParams()
+  if (filters.limit !== undefined) params.set('limit', String(filters.limit))
+  if (filters.offset !== undefined) params.set('offset', String(filters.offset))
+  if (filters.project_id) params.set('project_id', filters.project_id)
+  if (filters.event) params.set('event', filters.event)
+  if (filters.success !== undefined) params.set('success', String(filters.success))
+  if (filters.search) params.set('search', filters.search)
+  const qs = params.toString()
+  return apiFetch<AdminLogsResponse>(`/admin/logs${qs ? `?${qs}` : ''}`)
+}

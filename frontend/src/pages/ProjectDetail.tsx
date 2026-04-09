@@ -306,7 +306,8 @@ if let Some((user, session)) = futureauth.get_session(&token).await? {
 
   const axumRoutes = `use futureauth::axum::{auth_router, AuthSession};
 
-// Mount auth routes: /api/auth/send-otp, verify-otp, session, sign-out
+// Mount auth routes: /api/auth/send-otp, verify-otp, session, sign-out,
+// send-magic-link, verify-magic-link
 let app = Router::new()
     .nest("/api/auth", auth_router())
     .route("/api/me", get(me_handler))
@@ -314,6 +315,36 @@ let app = Router::new()
 
 async fn me_handler(auth: AuthSession) -> Json<User> {
     Json(auth.user)
+}`
+
+  const sendMagicLinkCode = `// Send a magic link via email.
+// The link is built as: {magic_link_callback_url}?token=<48-char-token>
+// Configure the callback URL in the project settings above.
+futureauth.send_magic_link("user@example.com").await?;`
+
+  const verifyMagicLinkCode = `// User clicks the magic link → your callback URL receives ?token=...
+// Extract the token and verify it:
+let token = req.query("token")?;
+let (user, session) = futureauth.verify_magic_link(
+    &token,
+    Some(ip_address),
+    Some(user_agent),
+).await?;
+// Set session cookie: session.token (then redirect the user to your app)`
+
+  const magicLinkAxumHandler = `// If you use the axum-integration feature, these routes are mounted automatically:
+//   POST /api/auth/send-magic-link    { email }
+//   POST /api/auth/verify-magic-link  { token }
+//
+// Your frontend callback page should POST the token from the URL:
+async function verifyCallback() {
+    const token = new URLSearchParams(location.search).get("token");
+    const res = await fetch("/api/auth/verify-magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+    });
+    if (res.ok) location.href = "/";
 }`
 
   return (
@@ -390,6 +421,38 @@ async fn me_handler(auth: AuthSession) -> Json<User> {
               Enable the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">axum-integration</code> feature for pre-built auth routes and extractors.
             </p>
             <CodeBlock file="With axum-integration feature" code={axumRoutes} />
+          </section>
+
+          <section className="border-t border-gray-200 pt-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Magic Link Authentication</h3>
+            <p className="text-sm text-gray-500 mb-3">
+              As an alternative to OTP codes, you can send a one-click magic link via email. Make sure you've set a
+              <strong> Magic Link Callback URL </strong> above — FutureAuth appends{' '}
+              <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">?token=...</code> to it when sending the email.
+              {!project.magic_link_callback_url && (
+                <span className="block mt-2 text-amber-700">
+                  ⚠ No callback URL configured. Magic links will return a 400 error until you set one.
+                </span>
+              )}
+            </p>
+
+            <div className="text-xs text-gray-500 mb-1">1. Send the magic link</div>
+            <CodeBlock file="Send magic link" code={sendMagicLinkCode} />
+
+            <div className="text-xs text-gray-500 mb-1 mt-4">2. Verify the token on your callback page</div>
+            <CodeBlock file="Verify magic link" code={verifyMagicLinkCode} />
+
+            <div className="text-xs text-gray-500 mb-1 mt-4">3. (Optional) Use the built-in Axum routes</div>
+            <CodeBlock file="axum-integration feature" code={magicLinkAxumHandler} />
+
+            <div className="border-l-2 border-indigo-400 bg-indigo-50 text-indigo-800 px-4 py-3 rounded-r-lg text-sm mt-4">
+              <strong>How the flow works:</strong> <code className="bg-white/60 px-1 rounded">send_magic_link</code>{' '}
+              generates a 48-char token, stores it in <em>your</em> verification table (15-minute TTL), then calls
+              FutureAuth to deliver the email. When the user clicks the link, your callback URL receives{' '}
+              <code className="bg-white/60 px-1 rounded">?token=...</code>, and{' '}
+              <code className="bg-white/60 px-1 rounded">verify_magic_link</code> creates a session in your database.
+              FutureAuth never stores user data — everything lives in your Postgres.
+            </div>
           </section>
 
           <section className="border-t border-gray-200 pt-6">

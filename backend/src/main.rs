@@ -124,6 +124,7 @@ async fn main() {
         // Admin
         .route("/api/admin/overview", get(routes::admin::overview))
         .route("/api/admin/projects", get(routes::admin::list_projects))
+        .route("/api/admin/logs", get(routes::admin::list_logs))
         .route("/api/admin/config", get(routes::admin::get_config))
         .route("/api/keys", get(routes::keys::list).post(routes::keys::create))
         .route("/api/keys/{id}", delete_route(routes::keys::delete))
