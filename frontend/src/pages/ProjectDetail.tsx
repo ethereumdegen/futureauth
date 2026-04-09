@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useLocation } from 'react-router'
 import { getProject, deleteProject, updateProject, regenerateProjectKeys, getProjectLogs, getProjectBilling, createCheckoutSession, createPortalSession, type Project, type OtpLogEntry, type BillingInfo } from '../lib/api'
-import { ArrowLeft, Copy, Check, Phone, Mail, Trash2, Code, Pencil, RefreshCw, Home, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Copy, Check, Phone, Mail, Trash2, Code, Pencil, RefreshCw, Home, BarChart3, ChevronDown, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 type Tab = 'home' | 'analytics'
@@ -60,6 +60,12 @@ export default function ProjectDetail() {
     const updated = await updateProject(id, { name: editName.trim() })
     setProject(updated)
     setEditing(false)
+  }
+
+  async function handleSaveCallbackUrl(url: string) {
+    if (!id) return
+    const updated = await updateProject(id, { magic_link_callback_url: url || null })
+    setProject(updated)
   }
 
   if (!project) {
@@ -135,6 +141,7 @@ export default function ProjectDetail() {
               onCopy={copy}
               regenerating={regenerating}
               onRegenerate={handleRegenerateKeys}
+              onSaveCallbackUrl={handleSaveCallbackUrl}
             />
           )}
           {tab === 'analytics' && (
@@ -230,12 +237,13 @@ function BillingSection({ projectId }: { projectId: string }) {
   )
 }
 
-function HomeTab({ project, copied, onCopy, regenerating, onRegenerate }: {
+function HomeTab({ project, copied, onCopy, regenerating, onRegenerate, onSaveCallbackUrl }: {
   project: Project
   copied: string
   onCopy: (v: string, l: string) => void
   regenerating: boolean
   onRegenerate: () => void
+  onSaveCallbackUrl: (url: string) => Promise<void>
 }) {
   const isPhone = project.otp_mode === 'phone'
   const futureauthUrl = window.location.origin
@@ -333,65 +341,149 @@ async fn me_handler(auth: AuthSession) -> Json<User> {
         </div>
       </section>
 
+      {/* Magic Link Callback URL */}
+      <CallbackUrlSection
+        initialValue={project.magic_link_callback_url || ''}
+        onSave={onSaveCallbackUrl}
+      />
+
       {/* Billing */}
       <BillingSection projectId={project.id} />
 
-      {/* SDK Setup */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">
-          <Code size={14} className="inline mr-1" />
-          SDK Integration (Rust)
-        </h2>
-        <CodeBlock file="Cargo.toml" code={cargoToml} />
-      </section>
+      {/* SDK Setup — collapsed by default */}
+      <Accordion title="SDK Integration & Setup Instructions" icon={<Code size={14} />}>
+        <div className="space-y-8 pt-4">
+          <section>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Cargo.toml</h3>
+            <CodeBlock file="Cargo.toml" code={cargoToml} />
+          </section>
 
-      <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Initialize</h2>
-        <CodeBlock file="src/main.rs" code={rustSetup} />
-      </section>
+          <section>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Initialize</h3>
+            <CodeBlock file="src/main.rs" code={rustSetup} />
+          </section>
 
-      <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Send OTP</h2>
-        <CodeBlock file={isPhone ? 'Phone OTP' : 'Email OTP'} code={sendOtpCode} />
-      </section>
+          <section>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Send OTP</h3>
+            <CodeBlock file={isPhone ? 'Phone OTP' : 'Email OTP'} code={sendOtpCode} />
+          </section>
 
-      <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Verify OTP</h2>
-        <CodeBlock file="Verify & create session" code={verifyCode} />
-        <div className="border-l-2 border-amber-400 bg-amber-50 text-amber-800 px-4 py-3 rounded-r-lg text-sm mt-2 mb-4">
-          <strong>Important:</strong> Add brute-force protection on your verify endpoint. Use escalating delays
-          after each failed attempt (e.g., 0s → 30s → 60s → 5min → invalidate code).
-          Without attempt limits, an attacker could make unlimited guesses. See the{' '}
-          <Link to="/docs#brute-force" className="underline font-medium">docs</Link> for a full example.
+          <section>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Verify OTP</h3>
+            <CodeBlock file="Verify & create session" code={verifyCode} />
+            <div className="border-l-2 border-amber-400 bg-amber-50 text-amber-800 px-4 py-3 rounded-r-lg text-sm mt-2 mb-4">
+              <strong>Important:</strong> Add brute-force protection on your verify endpoint. Use escalating delays
+              after each failed attempt (e.g., 0s → 30s → 60s → 5min → invalidate code).
+              Without attempt limits, an attacker could make unlimited guesses. See the{' '}
+              <Link to="/docs#brute-force" className="underline font-medium">docs</Link> for a full example.
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Session Check</h3>
+            <CodeBlock file="Validate authenticated requests" code={sessionCheck} />
+          </section>
+
+          <section>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Axum Routes (optional)</h3>
+            <p className="text-sm text-gray-500 mb-3">
+              Enable the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">axum-integration</code> feature for pre-built auth routes and extractors.
+            </p>
+            <CodeBlock file="With axum-integration feature" code={axumRoutes} />
+          </section>
+
+          <section className="border-t border-gray-200 pt-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">How it works</h3>
+            <div className="text-sm text-gray-600 space-y-2">
+              <p>FutureAuth is an <strong>OTP delivery service</strong>. When you call <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">send_otp</code>, the SDK:</p>
+              <ol className="list-decimal list-inside space-y-1 ml-2">
+                <li>Generates a random code and stores it in <strong>your</strong> database (verification table)</li>
+                <li>Sends the code to FutureAuth's API for delivery via {isPhone ? 'Twilio SMS' : 'Resend email'}</li>
+              </ol>
+              <p className="mt-3">On <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">verify_otp</code>, the SDK checks the code against your local verification table, creates/finds the user, and creates a session — all in <strong>your</strong> database. FutureAuth never sees your database.</p>
+            </div>
+          </section>
         </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Session Check</h2>
-        <CodeBlock file="Validate authenticated requests" code={sessionCheck} />
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Axum Routes (optional)</h2>
-        <p className="text-sm text-gray-500 mb-3">
-          Enable the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">axum-integration</code> feature for pre-built auth routes and extractors.
-        </p>
-        <CodeBlock file="With axum-integration feature" code={axumRoutes} />
-      </section>
-
-      {/* Architecture note */}
-      <section className="border-t border-gray-200 pt-8">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">How it works</h2>
-        <div className="text-sm text-gray-600 space-y-2">
-          <p>FutureAuth is an <strong>OTP delivery service</strong>. When you call <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">send_otp</code>, the SDK:</p>
-          <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li>Generates a random code and stores it in <strong>your</strong> database (verification table)</li>
-            <li>Sends the code to FutureAuth's API for delivery via {isPhone ? 'Twilio SMS' : 'Resend email'}</li>
-          </ol>
-          <p className="mt-3">On <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">verify_otp</code>, the SDK checks the code against your local verification table, creates/finds the user, and creates a session — all in <strong>your</strong> database. FutureAuth never sees your database.</p>
-        </div>
-      </section>
+      </Accordion>
     </div>
+  )
+}
+
+function CallbackUrlSection({ initialValue, onSave }: {
+  initialValue: string
+  onSave: (url: string) => Promise<void>
+}) {
+  const [value, setValue] = useState(initialValue)
+  const [saving, setSaving] = useState(false)
+  const [savedAt, setSavedAt] = useState(0)
+  const dirty = value !== initialValue
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    if (!dirty || saving) return
+    setSaving(true)
+    try {
+      await onSave(value.trim())
+      setSavedAt(Date.now())
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wider">Magic Link Callback URL</h2>
+      <p className="text-sm text-gray-500 mb-3">
+        When you send a magic link via this project, FutureAuth will append <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">?token=...</code> to this URL.
+        Required to send magic links.
+      </p>
+      <form onSubmit={handleSave} className="flex items-center gap-2">
+        <input
+          type="url"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          placeholder="https://yourapp.com/auth/verify"
+          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 font-mono text-gray-800 focus:border-gray-900 focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={!dirty || saving}
+          className="text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 px-4 py-2 rounded-lg transition-colors"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      </form>
+      {savedAt > 0 && !dirty && (
+        <p className="text-xs text-emerald-600 mt-2">Saved.</p>
+      )}
+    </section>
+  )
+}
+
+function Accordion({ title, icon, children }: {
+  title: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <section className="border border-gray-200 rounded-lg">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-gray-900 uppercase tracking-wider">
+          {icon}
+          {title}
+        </span>
+        {open ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 border-t border-gray-100">
+          {children}
+        </div>
+      )}
+    </section>
   )
 }
 

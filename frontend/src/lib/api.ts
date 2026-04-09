@@ -24,6 +24,7 @@ export interface Project {
   id: string
   name: string
   otp_mode: OtpMode
+  magic_link_callback_url?: string | null
   secret_key?: string  // only returned on creation/regeneration
   created_at: string
   updated_at?: string
