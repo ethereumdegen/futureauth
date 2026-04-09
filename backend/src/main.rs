@@ -15,6 +15,7 @@ use axum::{
     response::IntoResponse,
     http::StatusCode,
 };
+use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 use axum::http::header;
@@ -53,21 +54,21 @@ async fn main() {
     let config = Config::from_env();
     let port = config.port;
 
-    let pool = PgPool::connect(&config.database_url)
+    let pool = PgPoolOptions::new()
+        .max_lifetime(std::time::Duration::from_secs(30 * 60))
+        .connect(&config.database_url)
         .await
         .expect("Failed to connect to database");
 
-    // Run server-specific migrations (project, api_key tables)
-    run_migrations(&pool).await;
+    // Migrations are run manually via `cargo run --bin migrate` — NOT at startup.
 
-    // Initialize SDK — creates "user", session, verification tables (dogfooding)
+    // Initialize SDK handle (no table creation at startup)
     let auth = FutureAuth::new(pool.clone(), FutureAuthConfig {
         api_url: format!("http://127.0.0.1:{port}"),
         secret_key: "unused-self-hosted".to_string(),
         project_name: "FutureAuth".to_string(),
         ..Default::default()
     });
-    auth.ensure_tables().await.expect("Failed to create auth tables");
 
     let state = AppState {
         db: pool,
@@ -149,40 +150,6 @@ async fn main() {
         .unwrap();
     tracing::info!("FutureAuth server starting on port {port}");
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn run_migrations(pool: &PgPool) {
-    let init = include_str!("../migrations/001_init.sql");
-    if let Err(e) = sqlx::raw_sql(init).execute(pool).await {
-        tracing::error!("Migration 001 failed: {e}");
-        std::process::exit(1);
-    }
-    let drop_pub_key = include_str!("../migrations/002_drop_publishable_key.sql");
-    if let Err(e) = sqlx::raw_sql(drop_pub_key).execute(pool).await {
-        tracing::error!("Migration 002 failed: {e}");
-        std::process::exit(1);
-    }
-    let otp_log = include_str!("../migrations/003_otp_log.sql");
-    if let Err(e) = sqlx::raw_sql(otp_log).execute(pool).await {
-        tracing::error!("Migration 003 failed: {e}");
-        std::process::exit(1);
-    }
-    let callback_url = include_str!("../migrations/004_project_callback_url.sql");
-    if let Err(e) = sqlx::raw_sql(callback_url).execute(pool).await {
-        tracing::error!("Migration 004 failed: {e}");
-        std::process::exit(1);
-    }
-    let otp_log_project = include_str!("../migrations/005_otp_log_project_id.sql");
-    if let Err(e) = sqlx::raw_sql(otp_log_project).execute(pool).await {
-        tracing::error!("Migration 005 failed: {e}");
-        std::process::exit(1);
-    }
-    let billing = include_str!("../migrations/006_billing.sql");
-    if let Err(e) = sqlx::raw_sql(billing).execute(pool).await {
-        tracing::error!("Migration 006 failed: {e}");
-        std::process::exit(1);
-    }
-    tracing::info!("Migrations complete");
 }
 
 async fn health() -> impl IntoResponse {

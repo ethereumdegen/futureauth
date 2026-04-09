@@ -1,5 +1,15 @@
+use futureauth::{FutureAuth, FutureAuthConfig};
 use sqlx::{PgPool, Row};
 use std::time::Instant;
+
+const MIGRATIONS: &[(&str, &str)] = &[
+    ("001_init.sql", include_str!("../../migrations/001_init.sql")),
+    ("002_drop_publishable_key.sql", include_str!("../../migrations/002_drop_publishable_key.sql")),
+    ("003_otp_log.sql", include_str!("../../migrations/003_otp_log.sql")),
+    ("004_project_callback_url.sql", include_str!("../../migrations/004_project_callback_url.sql")),
+    ("005_otp_log_project_id.sql", include_str!("../../migrations/005_otp_log_project_id.sql")),
+    ("006_billing.sql", include_str!("../../migrations/006_billing.sql")),
+];
 
 #[tokio::main]
 async fn main() {
@@ -52,7 +62,6 @@ async fn main() {
         println!("→ Dropping all tables...");
         let drop_start = Instant::now();
 
-        // List tables that will be dropped
         for table in &tables {
             println!("  ✗ Dropping: {}", table);
         }
@@ -72,35 +81,60 @@ async fn main() {
         println!();
     }
 
-    println!("→ Running migration: 001_init.sql");
-    let sql = include_str!("../../migrations/001_init.sql");
+    // Run server-owned migrations in order
+    for (name, sql) in MIGRATIONS {
+        println!("→ Running migration: {}", name);
 
-    // Parse and display what the migration will do
-    for line in sql.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("CREATE TABLE") {
-            let name = trimmed
-                .strip_prefix("CREATE TABLE IF NOT EXISTS ")
-                .or_else(|| trimmed.strip_prefix("CREATE TABLE "))
-                .and_then(|s| s.split(|c: char| c == '(' || c.is_whitespace()).next())
-                .unwrap_or("?");
-            println!("  + Table:  {}", name);
-        } else if trimmed.starts_with("CREATE INDEX") {
-            let name = trimmed
-                .strip_prefix("CREATE INDEX IF NOT EXISTS ")
-                .or_else(|| trimmed.strip_prefix("CREATE INDEX "))
-                .and_then(|s| s.split_whitespace().next())
-                .unwrap_or("?");
-            println!("  + Index:  {}", name);
+        // Parse and display what the migration will do
+        for line in sql.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("CREATE TABLE") {
+                let parsed = trimmed
+                    .strip_prefix("CREATE TABLE IF NOT EXISTS ")
+                    .or_else(|| trimmed.strip_prefix("CREATE TABLE "))
+                    .and_then(|s| s.split(|c: char| c == '(' || c.is_whitespace()).next())
+                    .unwrap_or("?");
+                println!("  + Table:  {}", parsed);
+            } else if trimmed.starts_with("CREATE INDEX") {
+                let parsed = trimmed
+                    .strip_prefix("CREATE INDEX IF NOT EXISTS ")
+                    .or_else(|| trimmed.strip_prefix("CREATE INDEX "))
+                    .and_then(|s| s.split_whitespace().next())
+                    .unwrap_or("?");
+                println!("  + Index:  {}", parsed);
+            } else if trimmed.starts_with("ALTER TABLE") {
+                println!("  ~ {}", trimmed.trim_end_matches(';'));
+            } else if trimmed.starts_with("DROP ") {
+                println!("  - {}", trimmed.trim_end_matches(';'));
+            }
         }
+
+        let mig_start = Instant::now();
+        if let Err(e) = sqlx::raw_sql(sql).execute(&pool).await {
+            eprintln!("  ✗ Migration {} failed: {}", name, e);
+            std::process::exit(1);
+        }
+        println!("  ✓ Applied ({:.0?})", mig_start.elapsed());
+        println!();
     }
 
-    let mig_start = Instant::now();
-    sqlx::raw_sql(sql)
-        .execute(&pool)
-        .await
-        .expect("Migration failed");
-    println!("  ✓ Migration applied ({:.0?})", mig_start.elapsed());
+    // Run SDK migrations (creates "user", session, verification tables)
+    println!("→ Running SDK migrations (ensure_tables)");
+    let auth = FutureAuth::new(
+        pool.clone(),
+        FutureAuthConfig {
+            api_url: "http://127.0.0.1".to_string(),
+            secret_key: "unused-self-hosted".to_string(),
+            project_name: "FutureAuth".to_string(),
+            ..Default::default()
+        },
+    );
+    let sdk_start = Instant::now();
+    if let Err(e) = auth.ensure_tables().await {
+        eprintln!("  ✗ SDK ensure_tables failed: {}", e);
+        std::process::exit(1);
+    }
+    println!("  ✓ SDK tables ready ({:.0?})", sdk_start.elapsed());
     println!();
 
     // Show final state
