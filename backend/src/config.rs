@@ -6,6 +6,7 @@ pub struct Config {
     pub port: u16,
     pub cors_origin: String,
     pub hmac_secret: String,
+    pub trust_proxy_headers: bool,
     pub resend_api_key: Option<String>,
     pub resend_from_email: String,
     pub twilio_account_sid: Option<String>,
@@ -28,6 +29,14 @@ impl Config {
             cors_origin: env::var("CORS_ORIGIN")
                 .unwrap_or_else(|_| "http://localhost:5180".into()),
             hmac_secret: env::var("HMAC_SECRET").expect("HMAC_SECRET required"),
+            // Only honor X-Forwarded-For / X-Real-IP when the server sits behind a
+            // trusted reverse proxy (e.g. Railway, Cloudflare, nginx). When false,
+            // we ignore those headers and use the socket peer address so clients
+            // cannot spoof their IP to bypass rate limiting.
+            trust_proxy_headers: env::var("TRUST_PROXY_HEADERS")
+                .ok()
+                .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+                .unwrap_or(false),
             resend_api_key: env::var("RESEND_API_KEY").ok(),
             resend_from_email: env::var("RESEND_FROM_EMAIL")
                 .unwrap_or_else(|_| "noreply@auth.future-auth.com".into()),

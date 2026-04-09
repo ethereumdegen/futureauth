@@ -25,6 +25,61 @@ pub struct UpdateProjectRequest {
     pub magic_link_callback_url: Option<String>,
 }
 
+/// Validate a magic-link callback URL. We are strict here because this URL is
+/// appended with `?token=…` and emailed out under the project's branding — a
+/// malicious owner could otherwise turn the endpoint into an open phishing
+/// relay.
+///
+/// Rules:
+///   - must be `https://`
+///   - must have a real host (contains a dot, no embedded userinfo)
+///   - must not contain a query or fragment (we append `?token=` ourselves)
+///   - must not contain whitespace / control characters
+fn validate_callback_url(url: &str) -> Result<(), AppError> {
+    if url.is_empty() {
+        return Err(AppError::BadRequest(
+            "magic_link_callback_url must not be empty".into(),
+        ));
+    }
+    if url.len() > 2048 {
+        return Err(AppError::BadRequest(
+            "magic_link_callback_url must be 2048 characters or fewer".into(),
+        ));
+    }
+    let Some(rest) = url.strip_prefix("https://") else {
+        return Err(AppError::BadRequest(
+            "magic_link_callback_url must start with https://".into(),
+        ));
+    };
+    if rest.is_empty() {
+        return Err(AppError::BadRequest(
+            "magic_link_callback_url is missing a host".into(),
+        ));
+    }
+    if rest.contains('?') || rest.contains('#') {
+        return Err(AppError::BadRequest(
+            "magic_link_callback_url must not contain a query string or fragment".into(),
+        ));
+    }
+    if rest.chars().any(|c| c.is_control() || c == ' ') {
+        return Err(AppError::BadRequest(
+            "magic_link_callback_url must not contain whitespace or control characters".into(),
+        ));
+    }
+    let host = rest.split('/').next().unwrap_or("");
+    if host.is_empty() || !host.contains('.') || host.starts_with('.') || host.ends_with('.') {
+        return Err(AppError::BadRequest(
+            "magic_link_callback_url must use a real hostname".into(),
+        ));
+    }
+    if host.contains('@') {
+        return Err(AppError::BadRequest(
+            "magic_link_callback_url must not contain userinfo".into(),
+        ));
+    }
+    Ok(())
+}
+
 pub async fn list(
     auth: DashboardAuth,
     State(state): State<AppState>,
@@ -94,6 +149,30 @@ pub async fn update(
     Path(id): Path<String>,
     Json(body): Json<UpdateProjectRequest>,
 ) -> Result<Json<Project>, AppError> {
+    if let Some(ref name) = body.name {
+        if name.is_empty() {
+            return Err(AppError::BadRequest("name must not be empty".into()));
+        }
+        if name.len() > 100 {
+            return Err(AppError::BadRequest("name must be 100 characters or fewer".into()));
+        }
+    }
+    if let Some(ref mode) = body.otp_mode {
+        if mode != "email" && mode != "phone" {
+            return Err(AppError::BadRequest("otp_mode must be 'email' or 'phone'".into()));
+        }
+        if mode == "phone" && !state.config.sms_enabled() {
+            return Err(AppError::BadRequest("SMS is not available — Twilio not configured".into()));
+        }
+    }
+
+    // Validate the callback URL before persisting. Sending `null` or omitting
+    // the field leaves the existing value alone (SQL COALESCE); any supplied
+    // string is strictly validated.
+    if let Some(ref raw) = body.magic_link_callback_url {
+        validate_callback_url(raw)?;
+    }
+
     let project = Project::update(
         &state.db,
         &id,

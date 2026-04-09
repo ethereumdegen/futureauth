@@ -23,7 +23,10 @@ pub async fn send_otp_email(
     let body = json!({
         "from": from,
         "to": to,
-        "subject": format!("{project_name} — Your sign-in code is {code}"),
+        // Intentionally do NOT include the code in the subject — subjects are
+        // visible on lock-screen notifications, push previews, and in
+        // server-side mail indexing, which would leak the OTP.
+        "subject": format!("{project_name} — your sign-in code"),
         "html": format!(
             r#"<div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 24px;">
                 <h2 style="margin-bottom: 8px;">{safe_name}</h2>

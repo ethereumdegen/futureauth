@@ -268,36 +268,69 @@ async fn create_stripe_portal_session(
         .ok_or_else(|| AppError::Internal("Stripe portal session creation failed".into()))
 }
 
+/// Maximum allowed drift between the Stripe-signed timestamp and the server clock.
+/// Matches Stripe's documented default tolerance.
+const STRIPE_WEBHOOK_TOLERANCE_SECS: i64 = 300;
+
 fn verify_stripe_signature(payload: &[u8], sig_header: &str, secret: &str) -> bool {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
-    // Parse timestamp and signature from header
-    let mut timestamp = "";
-    let mut signature = "";
+    // Parse timestamp and any v1= signatures. Stripe may list multiple v1= entries
+    // when the signing secret is being rotated.
+    let mut timestamp: &str = "";
+    let mut signatures: Vec<&str> = Vec::new();
     for part in sig_header.split(',') {
         let part = part.trim();
         if let Some(t) = part.strip_prefix("t=") {
             timestamp = t;
         } else if let Some(v) = part.strip_prefix("v1=") {
-            signature = v;
+            signatures.push(v);
         }
     }
 
-    if timestamp.is_empty() || signature.is_empty() {
+    if timestamp.is_empty() || signatures.is_empty() {
         return false;
     }
 
-    // Verify signature: HMAC-SHA256(secret, "timestamp.payload")
-    let signed_payload = format!("{timestamp}.{}", String::from_utf8_lossy(payload));
+    // Reject events whose timestamp drifts beyond the tolerance window — this is
+    // what prevents captured webhooks from being replayed later.
+    let Ok(ts) = timestamp.parse::<i64>() else {
+        return false;
+    };
+    let now = chrono::Utc::now().timestamp();
+    if (now - ts).abs() > STRIPE_WEBHOOK_TOLERANCE_SECS {
+        return false;
+    }
+
+    // Compute HMAC-SHA256(secret, "timestamp.payload") over the *raw* request body.
+    // Using String::from_utf8_lossy here would silently corrupt non-UTF8 bytes.
     let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(secret.as_bytes()) else {
         return false;
     };
-    mac.update(signed_payload.as_bytes());
+    mac.update(timestamp.as_bytes());
+    mac.update(b".");
+    mac.update(payload);
+    let computed = mac.finalize().into_bytes();
 
-    let Ok(expected) = hex::decode(signature) else {
+    // Constant-time compare against any listed v1 signature.
+    signatures.iter().any(|sig| {
+        hex::decode(sig)
+            .map(|expected| {
+                expected.len() == computed.len()
+                    && constant_time_eq(&expected, &computed)
+            })
+            .unwrap_or(false)
+    })
+}
+
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
         return false;
-    };
-
-    mac.verify_slice(&expected).is_ok()
+    }
+    let mut diff: u8 = 0;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
 }

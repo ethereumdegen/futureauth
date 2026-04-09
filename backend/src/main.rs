@@ -6,6 +6,7 @@ mod rate_limit;
 mod routes;
 mod services;
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{
@@ -149,7 +150,12 @@ async fn main() {
         .await
         .unwrap();
     tracing::info!("FutureAuth server starting on port {port}");
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn health() -> impl IntoResponse {

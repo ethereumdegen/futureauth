@@ -1,5 +1,7 @@
+use std::net::SocketAddr;
+
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
@@ -28,14 +30,30 @@ fn is_valid_email(email: &str) -> bool {
     !local.is_empty() && domain.contains('.') && domain.len() > 2 && email.len() <= 254
 }
 
-fn extract_client_ip(headers: &HeaderMap) -> String {
-    headers
-        .get("x-forwarded-for")
-        .or_else(|| headers.get("x-real-ip"))
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "unknown".to_string())
+/// Returns the client IP to use for rate limiting and logging.
+///
+/// When `trust_proxy_headers` is true we believe the leftmost `X-Forwarded-For`
+/// (or `X-Real-IP`) entry — this is only safe behind a proxy that strips and
+/// rewrites those headers. Otherwise we use the raw socket peer address so a
+/// client cannot spoof its IP to bypass rate limiting.
+fn extract_client_ip(
+    trust_proxy: bool,
+    peer: SocketAddr,
+    headers: &HeaderMap,
+) -> String {
+    if trust_proxy {
+        if let Some(ip) = headers
+            .get("x-forwarded-for")
+            .or_else(|| headers.get("x-real-ip"))
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+        {
+            return ip;
+        }
+    }
+    peer.ip().to_string()
 }
 
 /// Send OTP — stores code in SDK's verification table, sends email directly.
@@ -43,6 +61,7 @@ fn extract_client_ip(headers: &HeaderMap) -> String {
 /// because this server IS the email delivery service.
 pub async fn send_otp(
     State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<SendOtpRequest>,
 ) -> impl IntoResponse {
@@ -51,7 +70,7 @@ pub async fn send_otp(
     }
 
     // Rate limit by IP: 5 requests per 60 seconds
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(state.config.trust_proxy_headers, peer, &headers);
     if !state.otp_send_limiter.check(&ip).await {
         return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many requests, try again later" }))).into_response();
     }
@@ -70,23 +89,12 @@ pub async fn send_otp(
         (0..6).map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char).collect()
     };
 
-    // Delete old codes and store new one (same table the SDK's verify_otp reads from)
-    let _ = sqlx::query("DELETE FROM verification WHERE identifier = $1")
-        .bind(&body.email)
-        .execute(&state.db)
-        .await;
-
-    let id = nanoid::nanoid!();
-    let expires_at = chrono::Utc::now() + chrono::Duration::minutes(2);
-    if let Err(e) = sqlx::query(
-        "INSERT INTO verification (id, identifier, code, expires_at) VALUES ($1, $2, $3, $4)",
-    )
-    .bind(&id)
-    .bind(&body.email)
-    .bind(&code)
-    .bind(expires_at)
-    .execute(&state.db)
-    .await
+    // Store the code in the SDK's verification table (hashed at rest).
+    // 2-minute TTL for dashboard OTP codes.
+    if let Err(e) = state
+        .auth
+        .store_otp(&body.email, &code, std::time::Duration::from_secs(120))
+        .await
     {
         tracing::error!("Failed to store verification: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Failed to send code" }))).into_response();
@@ -137,6 +145,7 @@ pub async fn send_otp(
 /// Verify OTP — fully delegated to the SDK. Creates user + session in SDK tables.
 pub async fn verify_otp(
     State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<VerifyOtpRequest>,
 ) -> impl IntoResponse {
@@ -148,23 +157,17 @@ pub async fn verify_otp(
     }
 
     // Rate limit by IP: 5 attempts per 60 seconds
-    let client_ip = extract_client_ip(&headers);
+    let client_ip = extract_client_ip(state.config.trust_proxy_headers, peer, &headers);
     if !state.otp_verify_limiter.check(&client_ip).await {
         return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many attempts, try again later" }))).into_response();
     }
-
-    let ip = headers
-        .get("x-forwarded-for")
-        .or_else(|| headers.get("x-real-ip"))
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
 
     let ua = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    let result = state.auth.verify_otp(&body.email, &body.code, ip.as_deref(), ua.as_deref()).await;
+    let result = state.auth.verify_otp(&body.email, &body.code, Some(&client_ip), ua.as_deref()).await;
     let success = result.is_ok();
 
     // Log the OTP verify attempt
@@ -222,6 +225,7 @@ pub struct VerifyMagicLinkRequest {
 /// Send magic link — stores token in SDK's verification table, sends email directly.
 pub async fn send_magic_link(
     State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<SendMagicLinkRequest>,
 ) -> impl IntoResponse {
@@ -230,7 +234,7 @@ pub async fn send_magic_link(
     }
 
     // Rate limit by IP
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(state.config.trust_proxy_headers, peer, &headers);
     if !state.otp_send_limiter.check(&ip).await {
         return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many requests, try again later" }))).into_response();
     }
@@ -244,23 +248,11 @@ pub async fn send_magic_link(
     // Generate 48-char magic link token
     let token = nanoid::nanoid!(48);
 
-    // Store in verification table (kind='magic_link', 15min TTL)
-    let _ = sqlx::query("DELETE FROM verification WHERE identifier = $1 AND kind = 'magic_link'")
-        .bind(&body.email)
-        .execute(&state.db)
-        .await;
-
-    let id = nanoid::nanoid!();
-    let expires_at = chrono::Utc::now() + chrono::Duration::minutes(15);
-    if let Err(e) = sqlx::query(
-        "INSERT INTO verification (id, identifier, code, expires_at, kind) VALUES ($1, $2, $3, $4, 'magic_link')",
-    )
-    .bind(&id)
-    .bind(&body.email)
-    .bind(&token)
-    .bind(expires_at)
-    .execute(&state.db)
-    .await
+    // Store in verification table (kind='magic_link', 15min TTL, hashed at rest)
+    if let Err(e) = state
+        .auth
+        .store_magic_link(&body.email, &token, std::time::Duration::from_secs(900))
+        .await
     {
         tracing::error!("Failed to store magic link verification: {e}");
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Failed to send magic link" }))).into_response();
@@ -314,28 +306,23 @@ pub async fn send_magic_link(
 /// Verify magic link — delegated to the SDK. Creates user + session in SDK tables.
 pub async fn verify_magic_link(
     State(state): State<AppState>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<VerifyMagicLinkRequest>,
 ) -> impl IntoResponse {
-    let client_ip = extract_client_ip(&headers);
+    let client_ip = extract_client_ip(state.config.trust_proxy_headers, peer, &headers);
 
     // Rate limit by IP
     if !state.otp_verify_limiter.check(&client_ip).await {
         return (StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({ "error": "Too many attempts, try again later" }))).into_response();
     }
 
-    let ip = headers
-        .get("x-forwarded-for")
-        .or_else(|| headers.get("x-real-ip"))
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
-
     let ua = headers
         .get("user-agent")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
 
-    let result = state.auth.verify_magic_link(&body.token, ip.as_deref(), ua.as_deref()).await;
+    let result = state.auth.verify_magic_link(&body.token, Some(&client_ip), ua.as_deref()).await;
     let success = result.is_ok();
 
     // Log the verify attempt
