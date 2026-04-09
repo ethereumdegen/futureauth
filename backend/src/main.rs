@@ -162,6 +162,11 @@ async fn run_migrations(pool: &PgPool) {
         tracing::error!("Migration 002 failed: {e}");
         std::process::exit(1);
     }
+    let otp_log = include_str!("../migrations/003_otp_log.sql");
+    if let Err(e) = sqlx::raw_sql(otp_log).execute(pool).await {
+        tracing::error!("Migration 003 failed: {e}");
+        std::process::exit(1);
+    }
     let callback_url = include_str!("../migrations/004_project_callback_url.sql");
     if let Err(e) = sqlx::raw_sql(callback_url).execute(pool).await {
         tracing::error!("Migration 004 failed: {e}");
