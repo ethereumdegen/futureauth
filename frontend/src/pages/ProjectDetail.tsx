@@ -251,9 +251,9 @@ function HomeTab({ project, copied, onCopy, regenerating, onRegenerate, onSaveCa
   const futureauthUrl = window.location.origin
 
   const cargoToml = `[dependencies]
-futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk" }
+futureauth = "0.5"
 # Enable Axum integration for auth routes + extractor
-# futureauth = { git = "https://github.com/ethereumdegen/futureauth-sdk", features = ["axum-integration"] }`
+# futureauth = { version = "0.5", features = ["axum-integration"] }`
 
   const rustSetup = `use futureauth::{FutureAuth, FutureAuthConfig, OtpChannel};
 use sqlx::PgPool;
